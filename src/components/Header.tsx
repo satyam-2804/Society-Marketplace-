@@ -225,18 +225,20 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Shopping Cart Drawer Trigger */}
-            <button
-              onClick={() => setIsCartDrawerOpen(true)}
-              className="relative p-2 sm:px-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all active:scale-95 flex items-center gap-1 sm:gap-1.5 shrink-0"
-            >
-              <ShoppingBag className="w-4 h-4 stroke-[2.5] shrink-0" />
-              <span className="hidden sm:inline text-xs font-extrabold">Cart</span>
-              {cartItemsCount > 0 && (
-                <span className="bg-white text-emerald-700 text-[11px] font-black px-1.5 sm:px-2 py-0.5 rounded-full ml-0.5 shadow-xs shrink-0">
-                  {cartItemsCount}
-                </span>
-              )}
-            </button>
+            {currentRole !== 'admin' && (
+              <button
+                onClick={() => setIsCartDrawerOpen(true)}
+                className="relative p-2 sm:px-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all active:scale-95 flex items-center gap-1 sm:gap-1.5 shrink-0"
+              >
+                <ShoppingBag className="w-4 h-4 stroke-[2.5] shrink-0" />
+                <span className="hidden sm:inline text-xs font-extrabold">Cart</span>
+                {cartItemsCount > 0 && (
+                  <span className="bg-white text-emerald-700 text-[11px] font-black px-1.5 sm:px-2 py-0.5 rounded-full ml-0.5 shadow-xs shrink-0">
+                    {cartItemsCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* User Auth / Profile Dropdown */}
             {currentUser ? (
@@ -271,26 +273,30 @@ export const Header: React.FC<HeaderProps> = ({
                           <p className="text-[11px] text-emerald-700 font-medium mt-1">{currentUser.address}</p>
                         </div>
                         <div className="py-1 space-y-0.5">
-                          <button
-                            onClick={() => {
-                              setActiveView('profile');
-                              setIsProfileOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-slate-50 text-slate-700 font-medium"
-                          >
-                            <UserIcon className="w-4 h-4 text-emerald-600" />
-                            <span>My Profile & Address</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setActiveView('orders');
-                              setIsProfileOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-slate-50 text-slate-700 font-medium"
-                          >
-                            <Clock className="w-4 h-4 text-emerald-600" />
-                            <span>My Order History</span>
-                          </button>
+                          {currentRole !== 'admin' && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setActiveView('profile');
+                                  setIsProfileOpen(false);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-slate-50 text-slate-700 font-medium"
+                              >
+                                <UserIcon className="w-4 h-4 text-emerald-600" />
+                                <span>My Profile & Address</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActiveView('orders');
+                                  setIsProfileOpen(false);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-slate-50 text-slate-700 font-medium"
+                              >
+                                <Clock className="w-4 h-4 text-emerald-600" />
+                                <span>My Order History</span>
+                              </button>
+                            </>
+                          )}
 
                           {(currentUser.role === 'admin' || currentUser.role === 'store_owner') && (
                             <button

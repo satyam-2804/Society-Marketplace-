@@ -1,4 +1,4 @@
-import { Store, Product, User, Coupon, Banner, Order, AppNotification } from '../types';
+import { Store, Product, User, Coupon, Banner, Order, AppNotification, Review } from '../types';
 
 export const INITIAL_USERS: User[] = [
   {
@@ -360,4 +360,34 @@ export const DEMO_PRODUCTS: Product[] = [
     rating: 4.9,
     reviewsCount: 12,
   },
+];
+
+export const INITIAL_REVIEWS: Review[] = [
+  {
+    id: 'rev_1',
+    storeId: 'store_1',
+    userId: 'user_customer_1',
+    userName: 'Rahul Verma (Resident)',
+    rating: 5,
+    comment: 'Best grocery shop inside our society. Extremely fast delivery and authentic daily needs!',
+    createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'rev_2',
+    storeId: 'store_2',
+    userId: 'user_customer_1',
+    userName: 'Rahul Verma (Resident)',
+    rating: 5,
+    comment: 'The organic apples and mangoes are so fresh and sweet. Will buy again!',
+    createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'rev_3',
+    productId: 'prod_101',
+    userId: 'user_customer_1',
+    userName: 'Rahul Verma (Resident)',
+    rating: 5,
+    comment: 'Always fresh and cold. Delivered in 10 minutes!',
+    createdAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
+  }
 ];

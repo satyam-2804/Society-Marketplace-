@@ -309,22 +309,20 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           </div>
 
           {userOrders.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 space-y-3">
+            <div className="py-12 text-center text-slate-500 space-y-4">
               <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto" />
               <div>
-                <p className="font-extrabold text-sm text-slate-800">No orders placed yet</p>
-                <p className="text-xs text-slate-500 mt-0.5">Explore society shops and enjoy 20-min doorstep deliveries!</p>
+                <p className="font-black text-base text-slate-800 uppercase tracking-wide">no orders placed by you</p>
+                <p className="text-xs text-slate-500 mt-1">Explore our society marketplace outlets to place your first order!</p>
               </div>
-              {onGoHome && (
-                <button
-                  type="button"
-                  onClick={onGoHome}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all active:scale-95 inline-flex items-center gap-1.5"
-                >
-                  <span>Explore Society Shops</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={onGoHome}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition-all active:scale-95 inline-flex items-center gap-1.5 uppercase tracking-wider"
+              >
+                <span>continue shopping</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -344,7 +342,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     <div className="text-[11px] text-slate-600 mt-1.5 flex flex-wrap gap-1">
                       {o.items.map((item, idx) => (
                         <span key={idx} className="bg-white px-2 py-0.5 rounded border border-slate-200 font-semibold text-[10px]">
-                          {item.product.name} ({item.quantity}x)
+                          {item.productName || (item as any).product?.name} ({item.quantity}x)
                         </span>
                       ))}
                     </div>

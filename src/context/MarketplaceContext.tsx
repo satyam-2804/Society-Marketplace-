@@ -10,6 +10,7 @@ import {
   Banner,
   AppNotification,
   OrderStatus,
+  Review,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -21,6 +22,7 @@ import {
   INITIAL_NOTIFICATIONS,
   DEMO_STORES,
   DEMO_PRODUCTS,
+  INITIAL_REVIEWS,
 } from '../data/initialData';
 
 interface MarketplaceContextType {
@@ -124,6 +126,12 @@ interface MarketplaceContextType {
   addBanner: (banner: Omit<Banner, 'id'>) => void;
   broadcastNotification: (title: string, message: string) => void;
   markNotificationAsRead: (notificationId: string) => void;
+  toggleBanUser: (userId: string) => void;
+  deleteStore: (storeId: string) => void;
+
+  // Rating & Review System
+  reviews: Review[];
+  addReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => void;
 }
 
 const MarketplaceContext = createContext<MarketplaceContextType | undefined>(undefined);
@@ -224,6 +232,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
   });
 
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    const saved = localStorage.getItem('sm_reviews');
+    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+  });
+
   const [activeCoupon, setActiveCoupon] = useState<Coupon | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -276,6 +289,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     localStorage.setItem('sm_notifications', JSON.stringify(notifications));
   }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem('sm_reviews', JSON.stringify(reviews));
+  }, [reviews]);
 
   // Theme State (System Auto / Light / Dark)
   const [themeMode, setThemeModeState] = useState<'system' | 'light' | 'dark'>(() => {
@@ -361,6 +378,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     if (!foundUser) {
       return { success: false, message: 'No account found with this email. Please Sign Up.' };
+    }
+
+    if (foundUser.isBanned) {
+      return { success: false, message: 'This user account has been banned by the Admin.' };
     }
 
     if (targetRole && targetRole !== 'customer' && foundUser.role !== targetRole && foundUser.role !== 'admin') {
@@ -1082,6 +1103,75 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
   };
 
+  const toggleBanUser = (userId: string) => {
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          const isBanned = !u.isBanned;
+          if (isBanned && currentUser?.id === userId) {
+            setTimeout(() => logout(), 0);
+          }
+          return { ...u, isBanned };
+        }
+        return u;
+      })
+    );
+  };
+
+  const deleteStore = (storeId: string) => {
+    setStores((prev) => prev.filter((s) => s.id !== storeId));
+    setProducts((prev) => prev.filter((p) => p.storeId !== storeId));
+  };
+
+  const addReview = (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
+    const newReview: Review = {
+      ...reviewData,
+      id: 'rev_' + Date.now(),
+      createdAt: new Date().toISOString(),
+    };
+
+    // Calculate updated ratings
+    if (reviewData.productId) {
+      setProducts((prevProducts) =>
+        prevProducts.map((prod) => {
+          if (prod.id === reviewData.productId) {
+            const currentProductReviews = [newReview, ...reviews].filter((r) => r.productId === prod.id);
+            const totalRatingSum = currentProductReviews.reduce((sum, r) => sum + r.rating, 0);
+            const newCount = currentProductReviews.length;
+            const newRating = Number((totalRatingSum / newCount).toFixed(1));
+            return {
+              ...prod,
+              rating: newRating,
+              reviewsCount: newCount,
+            };
+          }
+          return prod;
+        })
+      );
+    }
+
+    if (reviewData.storeId) {
+      setStores((prevStores) =>
+        prevStores.map((st) => {
+          if (st.id === reviewData.storeId) {
+            const currentStoreReviews = [newReview, ...reviews].filter((r) => r.storeId === st.id);
+            const totalRatingSum = currentStoreReviews.reduce((sum, r) => sum + r.rating, 0);
+            const newCount = currentStoreReviews.length;
+            const newRating = Number((totalRatingSum / newCount).toFixed(1));
+            return {
+              ...st,
+              rating: newRating,
+              reviewsCount: newCount,
+            };
+          }
+          return st;
+        })
+      );
+    }
+
+    setReviews((prev) => [newReview, ...prev]);
+  };
+
   return (
     <MarketplaceContext.Provider
       value={{
@@ -1095,6 +1185,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         coupons,
         banners,
         notifications,
+        reviews,
+        addReview,
         activeCoupon,
         searchQuery,
         selectedCategory,
@@ -1163,6 +1255,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         addBanner,
         broadcastNotification,
         markNotificationAsRead,
+        toggleBanUser,
+        deleteStore,
       }}
     >
       {children}

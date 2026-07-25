@@ -11,6 +11,7 @@ export interface User {
   avatar?: string;
   createdAt: string;
   isApproved?: boolean; // For store owners or users
+  isBanned?: boolean; // Banned state for customers/users
 }
 
 export interface Product {

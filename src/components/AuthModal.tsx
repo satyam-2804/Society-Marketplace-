@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
-import { X, User, Store, ShieldCheck, Mail, Lock, Phone, MapPin, ArrowRight } from 'lucide-react';
+import { X, User, Store, ShieldCheck, Mail, Lock, Phone, MapPin, ArrowRight, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const AuthModal: React.FC = () => {
@@ -14,6 +14,7 @@ export const AuthModal: React.FC = () => {
 
   // Form states
   const [activeTab, setActiveTab] = useState<'customer_login' | 'customer_signup' | 'store_owner' | 'admin'>('customer_login');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Login fields
   const [email, setEmail] = useState('');
@@ -38,12 +39,15 @@ export const AuthModal: React.FC = () => {
 
     setErrorMsg(null);
     setSuccessMsg(null);
+    setIsLoading(false);
   }, [authModalTab, isAuthModalOpen]);
 
   if (!isAuthModalOpen) return null;
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
+    setIsLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
 
@@ -51,16 +55,22 @@ export const AuthModal: React.FC = () => {
     if (activeTab === 'store_owner') targetRole = 'store_owner';
     if (activeTab === 'admin') targetRole = 'admin';
 
+    // Simulate authenticating delay to prevent double submissions and show spinner properly
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
     const res = login(email, password, targetRole);
     if (!res.success) {
       setErrorMsg(res.message);
+      setIsLoading(false);
     } else {
       setSuccessMsg(res.message);
+      setIsLoading(false);
     }
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setErrorMsg(null);
     setSuccessMsg(null);
 
@@ -68,6 +78,10 @@ export const AuthModal: React.FC = () => {
       setErrorMsg('Please fill out all required fields.');
       return;
     }
+
+    setIsLoading(true);
+    // Simulate authenticating delay to prevent double submissions and show spinner properly
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     const res = signup({
       fullName,
@@ -80,8 +94,10 @@ export const AuthModal: React.FC = () => {
 
     if (!res.success) {
       setErrorMsg(res.message);
+      setIsLoading(false);
     } else {
       setSuccessMsg('Account created successfully! Logged in as resident.');
+      setIsLoading(false);
     }
   };
 
@@ -97,7 +113,10 @@ export const AuthModal: React.FC = () => {
           {/* Close button */}
           <button
             onClick={closeAuthModal}
-            className="absolute top-5 right-5 p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+            disabled={isLoading}
+            className={`absolute top-5 right-5 p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             <X className="w-5 h-5" />
           </button>
@@ -105,8 +124,11 @@ export const AuthModal: React.FC = () => {
           {/* Role selector tabs */}
           <div className="flex bg-slate-100 p-1 rounded-2xl mb-6 text-xs font-extrabold text-slate-600">
             <button
-              onClick={() => setActiveTab('customer_login')}
+              onClick={() => !isLoading && setActiveTab('customer_login')}
+              disabled={isLoading}
               className={`flex-1 py-2 rounded-xl transition-all ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              } ${
                 activeTab === 'customer_login' || activeTab === 'customer_signup'
                   ? 'bg-white text-emerald-700 shadow-xs'
                   : 'hover:text-slate-900'
@@ -115,16 +137,22 @@ export const AuthModal: React.FC = () => {
               Resident
             </button>
             <button
-              onClick={() => setActiveTab('store_owner')}
+              onClick={() => !isLoading && setActiveTab('store_owner')}
+              disabled={isLoading}
               className={`flex-1 py-2 rounded-xl transition-all ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              } ${
                 activeTab === 'store_owner' ? 'bg-white text-amber-700 shadow-xs' : 'hover:text-slate-900'
               }`}
             >
               Store Owner
             </button>
             <button
-              onClick={() => setActiveTab('admin')}
+              onClick={() => !isLoading && setActiveTab('admin')}
+              disabled={isLoading}
               className={`flex-1 py-2 rounded-xl transition-all ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              } ${
                 activeTab === 'admin' ? 'bg-white text-rose-700 shadow-xs' : 'hover:text-slate-900'
               }`}
             >
@@ -161,25 +189,7 @@ export const AuthModal: React.FC = () => {
               </div>
 
               <form onSubmit={handleLoginSubmit} className="space-y-3">
-                {activeTab === 'admin' && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1">
-                    <p className="font-extrabold flex items-center gap-1">
-                      <ShieldCheck className="w-4 h-4 text-rose-600" /> Authorized Admin Credentials:
-                    </p>
-                    <p className="text-[11px] font-medium text-slate-700">Email: <strong>satyam443355@gmail.com</strong></p>
-                    <p className="text-[11px] font-medium text-slate-700">Password: <strong>Satyam@123</strong></p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('satyam443355@gmail.com');
-                        setPassword('Satyam@123');
-                      }}
-                      className="mt-1 text-[10px] font-bold text-rose-700 underline hover:text-rose-900"
-                    >
-                      Click to autofill Admin credentials
-                    </button>
-                  </div>
-                )}
+
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
@@ -188,10 +198,11 @@ export const AuthModal: React.FC = () => {
                   <input
                     type="email"
                     required
+                    disabled={isLoading}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={activeTab === 'admin' ? 'satyam443355@gmail.com' : 'e.g. resident@society.com'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-rose-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-rose-500 disabled:opacity-60"
                   />
                 </div>
 
@@ -202,25 +213,38 @@ export const AuthModal: React.FC = () => {
                   <input
                     type="password"
                     required
+                    disabled={isLoading}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
                   />
                 </div>
 
                 <button
                   type="submit"
+                  disabled={isLoading}
                   className={`w-full py-2.5 rounded-xl text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 ${
-                    activeTab === 'admin'
-                      ? 'bg-rose-600 hover:bg-rose-700'
+                    isLoading
+                      ? 'bg-slate-400 cursor-not-allowed opacity-80'
+                      : activeTab === 'admin'
+                      ? 'bg-rose-600 hover:bg-rose-700 active:scale-95'
                       : activeTab === 'store_owner'
-                      ? 'bg-amber-600 hover:bg-amber-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
+                      ? 'bg-amber-600 hover:bg-amber-700 active:scale-95'
+                      : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
                   }`}
                 >
-                  <span>Login to Portal</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Authenticating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Login to Portal</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </form>
 
@@ -229,8 +253,9 @@ export const AuthModal: React.FC = () => {
                   <p className="text-xs text-slate-500 font-medium">
                     New resident in society?{' '}
                     <button
-                      onClick={() => setActiveTab('customer_signup')}
-                      className="text-emerald-700 font-extrabold hover:underline"
+                      onClick={() => !isLoading && setActiveTab('customer_signup')}
+                      disabled={isLoading}
+                      className={`text-emerald-700 font-extrabold hover:underline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Register Account
                     </button>
@@ -256,10 +281,11 @@ export const AuthModal: React.FC = () => {
                   <input
                     type="text"
                     required
+                    disabled={isLoading}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Anish Gupta"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
                   />
                 </div>
 
@@ -271,10 +297,11 @@ export const AuthModal: React.FC = () => {
                     <input
                       type="text"
                       required
+                      disabled={isLoading}
                       value={mobile}
                       onChange={(e) => setMobile(e.target.value)}
                       placeholder="+91 98765 00000"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
                     />
                   </div>
 
@@ -285,10 +312,11 @@ export const AuthModal: React.FC = () => {
                     <input
                       type="email"
                       required
+                      disabled={isLoading}
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
                       placeholder="anish@gmail.com"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -300,10 +328,11 @@ export const AuthModal: React.FC = () => {
                   <input
                     type="text"
                     required
+                    disabled={isLoading}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="e.g. Block C, Flat 104"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
                   />
                 </div>
 
@@ -314,19 +343,34 @@ export const AuthModal: React.FC = () => {
                   <input
                     type="password"
                     required
+                    disabled={isLoading}
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  disabled={isLoading}
+                  className={`w-full py-2.5 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
+                    isLoading
+                      ? 'bg-slate-400 cursor-not-allowed opacity-80'
+                      : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
+                  }`}
                 >
-                  <span>Complete Resident Sign Up</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Creating Account...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Complete Resident Sign Up</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </form>
 
@@ -334,8 +378,9 @@ export const AuthModal: React.FC = () => {
                 <p className="text-xs text-slate-500 font-medium">
                   Already registered?{' '}
                   <button
-                    onClick={() => setActiveTab('customer_login')}
-                    className="text-emerald-700 font-extrabold hover:underline"
+                    onClick={() => !isLoading && setActiveTab('customer_login')}
+                    disabled={isLoading}
+                    className={`text-emerald-700 font-extrabold hover:underline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     Login here
                   </button>
