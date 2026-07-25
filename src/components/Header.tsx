@@ -46,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
     markNotificationAsRead,
     themeMode,
     setThemeMode,
+    isAdminTester,
   } = useMarketplace();
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -100,7 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Right Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Quick Role Swapper */}
-            <RoleSwapper />
+            {isAdminTester && <RoleSwapper />}
 
             {/* Active Order Tracker Button if exists */}
             {activeOrder && (

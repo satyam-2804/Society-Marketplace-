@@ -104,6 +104,8 @@ function MarketplaceApp() {
         setViewMode('app');
         setActiveView('dashboard');
       }
+    } else {
+      setActiveView('home');
     }
   }, [currentUser, currentRole]);
 

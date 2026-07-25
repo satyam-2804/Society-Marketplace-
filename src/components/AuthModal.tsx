@@ -10,10 +10,11 @@ export const AuthModal: React.FC = () => {
     closeAuthModal,
     login,
     signup,
+    signupStoreOwner,
   } = useMarketplace();
 
   // Form states
-  const [activeTab, setActiveTab] = useState<'customer_login' | 'customer_signup' | 'store_owner' | 'admin'>('customer_login');
+  const [activeTab, setActiveTab] = useState<'customer_login' | 'customer_signup' | 'store_owner' | 'store_owner_signup' | 'admin'>('customer_login');
   const [isLoading, setIsLoading] = useState(false);
 
   // Login fields
@@ -27,6 +28,11 @@ export const AuthModal: React.FC = () => {
   const [address, setAddress] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
 
+  // Store Owner Registration specific fields
+  const [storeName, setStoreName] = useState('');
+  const [storeCategory, setStoreCategory] = useState('Groceries & Daily Essentials');
+  const [blockLocation, setBlockLocation] = useState('');
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -37,10 +43,36 @@ export const AuthModal: React.FC = () => {
     else if (authModalTab === 'admin') setActiveTab('admin');
     else setActiveTab('customer_login');
 
+    setEmail('');
+    setPassword('');
+    setFullName('');
+    setMobile('');
+    setSignupEmail('');
+    setAddress('');
+    setSignupPassword('');
+    setStoreName('');
+    setStoreCategory('Groceries & Daily Essentials');
+    setBlockLocation('');
     setErrorMsg(null);
     setSuccessMsg(null);
     setIsLoading(false);
   }, [authModalTab, isAuthModalOpen]);
+
+  // Reset fields when activeTab changes
+  React.useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setFullName('');
+    setMobile('');
+    setSignupEmail('');
+    setAddress('');
+    setSignupPassword('');
+    setStoreName('');
+    setStoreCategory('Groceries & Daily Essentials');
+    setBlockLocation('');
+    setErrorMsg(null);
+    setSuccessMsg(null);
+  }, [activeTab]);
 
   if (!isAuthModalOpen) return null;
 
@@ -101,6 +133,39 @@ export const AuthModal: React.FC = () => {
     }
   };
 
+  const handleStoreOwnerSignupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (!fullName || !mobile || !signupEmail || !signupPassword || !storeName || !storeCategory || !blockLocation) {
+      setErrorMsg('Please fill out all required fields.');
+      return;
+    }
+
+    setIsLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const res = signupStoreOwner({
+      fullName,
+      email: signupEmail,
+      mobile,
+      password: signupPassword,
+      storeName,
+      storeCategory,
+      blockLocation,
+    });
+
+    if (!res.success) {
+      setErrorMsg(res.message);
+      setIsLoading(false);
+    } else {
+      setSuccessMsg(res.message);
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
@@ -142,7 +207,7 @@ export const AuthModal: React.FC = () => {
               className={`flex-1 py-2 rounded-xl transition-all ${
                 isLoading ? 'opacity-50 cursor-not-allowed' : ''
               } ${
-                activeTab === 'store_owner' ? 'bg-white text-amber-700 shadow-xs' : 'hover:text-slate-900'
+                activeTab === 'store_owner' || activeTab === 'store_owner_signup' ? 'bg-white text-amber-700 shadow-xs' : 'hover:text-slate-900'
               }`}
             >
               Store Owner
@@ -201,7 +266,7 @@ export const AuthModal: React.FC = () => {
                     disabled={isLoading}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={activeTab === 'admin' ? 'satyam443355@gmail.com' : 'e.g. resident@society.com'}
+                    placeholder={activeTab === 'admin' ? 'e.g. admin@society.com' : 'e.g. resident@society.com'}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-rose-500 disabled:opacity-60"
                   />
                 </div>
@@ -258,6 +323,22 @@ export const AuthModal: React.FC = () => {
                       className={`text-emerald-700 font-extrabold hover:underline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Register Account
+                    </button>
+                  </p>
+                </div>
+              )}
+
+              {activeTab === 'store_owner' && (
+                <div className="mt-4 text-center">
+                  <p className="text-xs text-slate-500 font-medium">
+                    New store owner?{' '}
+                    <button
+                      type="button"
+                      onClick={() => !isLoading && setActiveTab('store_owner_signup')}
+                      disabled={isLoading}
+                      className={`text-amber-700 font-extrabold hover:underline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      Register your store
                     </button>
                   </p>
                 </div>
@@ -381,6 +462,179 @@ export const AuthModal: React.FC = () => {
                     onClick={() => !isLoading && setActiveTab('customer_login')}
                     disabled={isLoading}
                     className={`text-emerald-700 font-extrabold hover:underline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    Login here
+                  </button>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Store Owner Signup Form */}
+          {activeTab === 'store_owner_signup' && (
+            <div>
+              <div className="mb-4">
+                <h3 className="text-xl font-extrabold text-slate-900">Register Store Owner</h3>
+                <p className="text-xs text-slate-500 font-medium mt-1">Submit your store for Society Admin approval</p>
+              </div>
+
+              <form onSubmit={handleStoreOwnerSignupSubmit} className="space-y-3">
+                {/* Store Details Section Header */}
+                <div className="border-b border-slate-100 pb-1.5 mb-2">
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-600 flex items-center gap-1">
+                    <Store className="w-3 h-3" /> Store Details
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Store / Shop Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={isLoading}
+                      value={storeName}
+                      onChange={(e) => setStoreName(e.target.value)}
+                      placeholder="e.g. Daily Fresh Groceries"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Category *
+                    </label>
+                    <select
+                      disabled={isLoading}
+                      value={storeCategory}
+                      onChange={(e) => setStoreCategory(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
+                    >
+                      <option value="Groceries & Daily Essentials">Groceries & Essentials</option>
+                      <option value="Fresh Vegetables & Organic Fruits">Vegetables & Fruits</option>
+                      <option value="Medicines & First Aid">Medicines & Pharmacy</option>
+                      <option value="Bakery, Milk & Snacks">Bakery & Dairy</option>
+                      <option value="Home Services & Hardware">Services & Hardware</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Block & Shop Location *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={isLoading}
+                      value={blockLocation}
+                      onChange={(e) => setBlockLocation(e.target.value)}
+                      placeholder="e.g. Block A, Shop #02"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+
+                {/* Personal / Account Details Section Header */}
+                <div className="border-b border-slate-100 pb-1.5 pt-2 mb-2">
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-600 flex items-center gap-1">
+                    <User className="w-3 h-3" /> Account Owner Details
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-amber-600" /> Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={isLoading}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Satish Kumar"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-amber-600" /> Mobile *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={isLoading}
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value)}
+                      placeholder="+91 98765 11111"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-amber-600" /> Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      disabled={isLoading}
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      placeholder="satish@gmail.com"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" /> Choose Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    disabled={isLoading}
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className={`w-full py-2.5 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
+                    isLoading
+                      ? 'bg-slate-400 cursor-not-allowed opacity-80'
+                      : 'bg-amber-600 hover:bg-amber-700 active:scale-95'
+                  }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Submitting for Approval...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Register & Submit Store</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-4 text-center">
+                <p className="text-xs text-slate-500 font-medium">
+                  Already registered?{' '}
+                  <button
+                    onClick={() => !isLoading && setActiveTab('store_owner')}
+                    disabled={isLoading}
+                    className={`text-amber-700 font-extrabold hover:underline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     Login here
                   </button>

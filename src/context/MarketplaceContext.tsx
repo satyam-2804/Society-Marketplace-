@@ -40,6 +40,7 @@ interface MarketplaceContextType {
   searchQuery: string;
   selectedCategory: string;
   selectedStoreId: string | null;
+  isAdminTester: boolean;
   
   // Navigation / Modal States
   isAuthModalOpen: boolean;
@@ -66,6 +67,15 @@ interface MarketplaceContextType {
   // Auth
   login: (email: string, pass: string, targetRole?: UserRole) => { success: boolean; message: string };
   signup: (userData: { fullName: string; email: string; mobile: string; address: string; password?: string }) => { success: boolean; message: string };
+  signupStoreOwner: (ownerData: {
+    fullName: string;
+    email: string;
+    mobile: string;
+    password?: string;
+    storeName: string;
+    storeCategory: string;
+    blockLocation: string;
+  }) => { success: boolean; message: string };
   logout: () => void;
   switchRoleQuick: (role: UserRole, storeId?: string) => void;
   updateUserProfile: (data: Partial<User>) => void;
@@ -140,7 +150,16 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Load initial state from LocalStorage or defaults
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('sm_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const adminOnly = parsed.filter((u: User) => u.role === 'admin' || u.id === 'user_admin');
+          return adminOnly.length > 0 ? adminOnly : INITIAL_USERS;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_USERS;
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -153,34 +172,15 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [stores, setStores] = useState<Store[]>(() => {
-    const saved = localStorage.getItem('sm_stores');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error(e);
-      }
-    }
     return INITIAL_STORES;
   });
 
   const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('sm_products');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error(e);
-      }
-    }
     return INITIAL_PRODUCTS;
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('sm_orders');
-    return saved ? JSON.parse(saved) : INITIAL_ORDERS;
+    return INITIAL_ORDERS;
   });
 
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -233,8 +233,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [reviews, setReviews] = useState<Review[]>(() => {
-    const saved = localStorage.getItem('sm_reviews');
-    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+    return INITIAL_REVIEWS;
   });
 
   const [activeCoupon, setActiveCoupon] = useState<Coupon | null>(null);
@@ -251,6 +250,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
   const [activeOrderTrackId, setActiveOrderTrackId] = useState<string | null>(null);
   const [deliveredEmailOrder, setDeliveredEmailOrder] = useState<Order | null>(null);
+
+  const [isAdminTester, setIsAdminTester] = useState<boolean>(() => {
+    return localStorage.getItem('isAdminTester') === 'true';
+  });
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -348,7 +351,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (formattedEmail !== 'satyam443355@gmail.com' || pass !== 'Satyam@123') {
         return {
           success: false,
-          message: 'Invalid Admin credentials! Only satyam443355@gmail.com with password Satyam@123 can log in as Admin.',
+          message: 'Invalid login credentials.',
         };
       }
 
@@ -371,6 +374,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setCurrentUser(adminUser);
       setCurrentRole('admin');
       setIsAuthModalOpen(false);
+      setIsAdminTester(true);
+      localStorage.setItem('isAdminTester', 'true');
       return { success: true, message: 'Welcome back, Satyam (Society Admin)!' };
     }
 
@@ -391,6 +396,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setCurrentUser(foundUser);
     setCurrentRole(foundUser.role);
     setIsAuthModalOpen(false);
+    setIsAdminTester(false);
+    localStorage.removeItem('isAdminTester');
     return { success: true, message: `Welcome back, ${foundUser.fullName}!` };
   };
 
@@ -419,11 +426,88 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return { success: true, message: 'Account created successfully! Welcome to Society Marketplace.' };
   };
 
+  const signupStoreOwner = (ownerData: {
+    fullName: string;
+    email: string;
+    mobile: string;
+    password?: string;
+    storeName: string;
+    storeCategory: string;
+    blockLocation: string;
+  }) => {
+    const formattedEmail = ownerData.email.trim().toLowerCase();
+    const existing = users.find((u) => u.email.toLowerCase() === formattedEmail);
+    if (existing) {
+      return { success: false, message: 'An account with this email already exists. Please login instead.' };
+    }
+
+    const storeId = 'store_' + Date.now();
+    const userId = 'user_' + Date.now();
+
+    const newUser: User = {
+      id: userId,
+      fullName: ownerData.fullName.trim(),
+      email: formattedEmail,
+      mobile: ownerData.mobile.trim(),
+      address: ownerData.blockLocation.trim(),
+      role: 'store_owner',
+      storeId,
+      isApproved: false,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(ownerData.fullName)}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    const newStore: Store = {
+      id: storeId,
+      name: ownerData.storeName.trim(),
+      category: ownerData.storeCategory,
+      ownerId: userId,
+      ownerName: ownerData.fullName.trim(),
+      ownerPhone: ownerData.mobile.trim(),
+      blockLocation: ownerData.blockLocation.trim(),
+      image: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=800&q=80',
+      rating: 5.0,
+      reviewsCount: 1,
+      isOpen: true,
+      openingTime: '08:00 AM',
+      closingTime: '10:00 PM',
+      status: 'pending',
+      deliveryTimeMinutes: 15,
+      minOrderAmount: 50,
+      totalSales: 0,
+    };
+
+    setUsers((prev) => [...prev, newUser]);
+    setStores((prev) => [newStore, ...prev]);
+    setCurrentUser(newUser);
+    setCurrentRole('store_owner');
+    setIsAuthModalOpen(false);
+
+    // Notify Admin (satyam443355@gmail.com)
+    const notif: AppNotification = {
+      id: 'notif_store_pending_' + Date.now(),
+      userId: 'user_admin',
+      title: 'New Store Approval Request 🏪',
+      message: `Store "${newStore.name}" registered by ${newUser.fullName} is awaiting your Admin approval.`,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      type: 'announcement',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+
+    return {
+      success: true,
+      message: `Account created! Store "${newStore.name}" submitted to Society Admin (satyam443355@gmail.com) for approval.`,
+    };
+  };
+
   const logout = () => {
     setCurrentUser(null);
     setCurrentRole('guest');
     setCart([]);
     setActiveCoupon(null);
+    setIsAdminTester(false);
+    localStorage.removeItem('isAdminTester');
   };
 
   const switchRoleQuick = (role: UserRole, storeId?: string) => {
@@ -1191,6 +1275,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         searchQuery,
         selectedCategory,
         selectedStoreId,
+        isAdminTester,
         isAuthModalOpen,
         authModalTab,
         isCartDrawerOpen,
@@ -1213,6 +1298,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         login,
         signup,
+        signupStoreOwner,
         logout,
         switchRoleQuick,
         updateUserProfile,
