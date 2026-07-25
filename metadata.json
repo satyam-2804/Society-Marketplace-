@@ -1,0 +1,6 @@
+{
+  "name": "Manokamna Apartments Marketplace",
+  "description": "Hyperlocal residential society marketplace for Manokamna Apartments with store owner approval workflows, resident orders, and dark/light system theme support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
