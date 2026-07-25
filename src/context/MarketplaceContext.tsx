@@ -255,6 +255,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return localStorage.getItem('isAdminTester') === 'true';
   });
 
+  const [isStateLoadedFromCloud, setIsStateLoadedFromCloud] = useState(false);
+
   // Cloud Backend Sync across devices & phones
   useEffect(() => {
     fetch('/api/state')
@@ -269,10 +271,13 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           if (Array.isArray(data.reviews)) setReviews(data.reviews);
           if (Array.isArray(data.coupons)) setCoupons(data.coupons);
           if (Array.isArray(data.banners)) setBanners(data.banners);
-          if (data.currentUser !== undefined) setCurrentUser(data.currentUser);
         }
+        setIsStateLoadedFromCloud(true);
       })
-      .catch((err) => console.error("Cloud state fetch error:", err));
+      .catch((err) => {
+        console.error("Cloud state fetch error:", err);
+        setIsStateLoadedFromCloud(true);
+      });
 
     const interval = setInterval(() => {
       fetch('/api/state')
@@ -296,13 +301,13 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   useEffect(() => {
+    if (!isStateLoadedFromCloud) return;
+
     const payload = {
       users,
-      currentUser,
       stores,
       products,
       orders,
-      cart,
       coupons,
       banners,
       notifications,
@@ -313,7 +318,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }).catch(() => {});
-  }, [users, currentUser, stores, products, orders, cart, coupons, banners, notifications, reviews]);
+  }, [isStateLoadedFromCloud, users, stores, products, orders, coupons, banners, notifications, reviews]);
 
   // Sync to LocalStorage
   useEffect(() => {

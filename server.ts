@@ -21,15 +21,13 @@ let appState: any = {
       address: 'Society Management Office, Gate 1',
       role: 'admin',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      createdAt: new Date().toISOString(),
+      createdAt: '2026-07-25T07:21:12-07:00',
       isApproved: true,
     }
   ],
-  currentUser: null,
   stores: [],
   products: [],
   orders: [],
-  cart: [],
   coupons: [],
   banners: [],
   notifications: [],
@@ -43,11 +41,39 @@ if (fs.existsSync(DATA_FILE)) {
     const raw = fs.readFileSync(DATA_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
-      appState = { ...appState, ...parsed };
+      // Ensure we merge and don't include currentUser/cart globally
+      appState = {
+        users: Array.isArray(parsed.users) ? parsed.users : appState.users,
+        stores: Array.isArray(parsed.stores) ? parsed.stores : [],
+        products: Array.isArray(parsed.products) ? parsed.products : [],
+        orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+        coupons: Array.isArray(parsed.coupons) ? parsed.coupons : [],
+        banners: Array.isArray(parsed.banners) ? parsed.banners : [],
+        notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
+        reviews: Array.isArray(parsed.reviews) ? parsed.reviews : [],
+        themeMode: parsed.themeMode || 'system'
+      };
     }
   } catch (e) {
     console.error("Error reading cloud_state.json:", e);
   }
+}
+
+// Guarantee Admin user satyam443355@gmail.com always exists
+const adminEmail = 'satyam443355@gmail.com';
+const hasAdmin = appState.users.some((u: any) => u.email.toLowerCase() === adminEmail);
+if (!hasAdmin) {
+  appState.users.push({
+    id: 'user_admin',
+    fullName: 'Satyam (Society Admin)',
+    email: adminEmail,
+    mobile: '+91 8595946517',
+    address: 'Society Management Office, Gate 1',
+    role: 'admin',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    createdAt: '2026-07-25T07:21:12-07:00',
+    isApproved: true,
+  });
 }
 
 function saveStateToDisk() {
@@ -70,7 +96,32 @@ app.get("/api/state", (req, res) => {
 app.post("/api/state", (req, res) => {
   const newState = req.body;
   if (newState && typeof newState === 'object') {
-    appState = { ...appState, ...newState };
+    // Exclude device-specific fields
+    const { currentUser, cart, ...cleanState } = newState;
+    
+    appState = { ...appState, ...cleanState };
+
+    // Ensure users array is valid and contains the Admin
+    if (!Array.isArray(appState.users)) {
+      appState.users = [];
+    }
+    
+    const adminEmail = 'satyam443355@gmail.com';
+    const hasAdmin = appState.users.some((u: any) => u.email.toLowerCase() === adminEmail);
+    if (!hasAdmin) {
+      appState.users.push({
+        id: 'user_admin',
+        fullName: 'Satyam (Society Admin)',
+        email: adminEmail,
+        mobile: '+91 8595946517',
+        address: 'Society Management Office, Gate 1',
+        role: 'admin',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+        createdAt: '2026-07-25T07:21:12-07:00',
+        isApproved: true,
+      });
+    }
+
     saveStateToDisk();
   }
   res.json({ success: true, state: appState });

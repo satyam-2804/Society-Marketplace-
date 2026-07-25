@@ -543,28 +543,52 @@ export const StoreOwnerDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <button
-            onClick={() => updateStoreDetails(store.id, { isOpen: !store.isOpen })}
-            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
-              store.isOpen
-                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-            }`}
-          >
-            {store.isOpen ? 'Temporarily Pause Orders' : 'Re-open Store'}
-          </button>
-          <button
-            onClick={openAddProductModal}
-            className="flex-1 md:flex-none px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-xs transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Product</span>
-          </button>
-        </div>
+        {store.status !== 'pending' && (
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <button
+              onClick={() => updateStoreDetails(store.id, { isOpen: !store.isOpen })}
+              className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                store.isOpen
+                  ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+              }`}
+            >
+              {store.isOpen ? 'Temporarily Pause Orders' : 'Re-open Store'}
+            </button>
+            <button
+              onClick={openAddProductModal}
+              className="flex-1 md:flex-none px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-xs transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Product</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Overview Stat Cards */}
+      {store.status === 'pending' ? (
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center max-w-2xl mx-auto shadow-sm mt-4">
+          <Clock className="w-12 h-12 text-amber-500 mx-auto mb-4 stroke-[1.8]" />
+          <h3 className="text-lg font-black text-slate-900">Your Store Registration is Under Verification</h3>
+          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+            In order to ensure maximum safety, trust, and verify residency inside <strong>Manokamna Apartments</strong>, all physical & home outlets are strictly verified by our Society Admin (<strong>satyam443355@gmail.com</strong>) before going live.
+          </p>
+          <div className="mt-6 bg-slate-50 border border-slate-100 p-4 rounded-2xl text-left space-y-2.5">
+            <h4 className="text-xs font-bold text-slate-700">🔒 Locked Features awaiting Approval:</h4>
+            <ul className="text-[11px] text-slate-500 space-y-1.5 list-disc list-inside">
+              <li>Add custom products and set stock levels</li>
+              <li>Configure direct-to-bank UPI payment keys</li>
+              <li>Receive real-time 20-minute delivery orders from residents</li>
+              <li>Toggle shop open/close status</li>
+            </ul>
+          </div>
+          <p className="text-[11px] text-amber-700 font-semibold mt-6 bg-amber-50 py-2 px-3 rounded-xl inline-block">
+            🔔 An approval request has been sent to satyam443355@gmail.com. Please contact the society office for faster activation!
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Overview Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
@@ -893,6 +917,8 @@ export const StoreOwnerDashboard: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Add / Edit Product Modal */}
