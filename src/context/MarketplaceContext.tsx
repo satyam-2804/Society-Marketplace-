@@ -255,6 +255,66 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return localStorage.getItem('isAdminTester') === 'true';
   });
 
+  // Cloud Backend Sync across devices & phones
+  useEffect(() => {
+    fetch('/api/state')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data === 'object') {
+          if (Array.isArray(data.users) && data.users.length > 0) setUsers(data.users);
+          if (Array.isArray(data.stores)) setStores(data.stores);
+          if (Array.isArray(data.products)) setProducts(data.products);
+          if (Array.isArray(data.orders)) setOrders(data.orders);
+          if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+          if (Array.isArray(data.reviews)) setReviews(data.reviews);
+          if (Array.isArray(data.coupons)) setCoupons(data.coupons);
+          if (Array.isArray(data.banners)) setBanners(data.banners);
+          if (data.currentUser !== undefined) setCurrentUser(data.currentUser);
+        }
+      })
+      .catch((err) => console.error("Cloud state fetch error:", err));
+
+    const interval = setInterval(() => {
+      fetch('/api/state')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data === 'object') {
+            if (Array.isArray(data.users)) setUsers(data.users);
+            if (Array.isArray(data.stores)) setStores(data.stores);
+            if (Array.isArray(data.products)) setProducts(data.products);
+            if (Array.isArray(data.orders)) setOrders(data.orders);
+            if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+            if (Array.isArray(data.reviews)) setReviews(data.reviews);
+            if (Array.isArray(data.coupons)) setCoupons(data.coupons);
+            if (Array.isArray(data.banners)) setBanners(data.banners);
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const payload = {
+      users,
+      currentUser,
+      stores,
+      products,
+      orders,
+      cart,
+      coupons,
+      banners,
+      notifications,
+      reviews,
+    };
+    fetch('/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  }, [users, currentUser, stores, products, orders, cart, coupons, banners, notifications, reviews]);
+
   // Sync to LocalStorage
   useEffect(() => {
     localStorage.setItem('sm_users', JSON.stringify(users));
