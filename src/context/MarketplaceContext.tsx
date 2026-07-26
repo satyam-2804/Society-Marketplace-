@@ -19,12 +19,25 @@ function cleanObject(obj: any): any {
   return cleaned;
 }
 
+let hasQuotaError = false;
+
 const safeSetDoc = (docRef: any, data: any, options?: any) => {
+  if (hasQuotaError) return Promise.resolve();
   const cleanedData = cleanObject(data);
-  return options ? setDoc(docRef, cleanedData, options) : setDoc(docRef, cleanedData);
+  const promise = options ? setDoc(docRef, cleanedData, options) : setDoc(docRef, cleanedData);
+  return promise.catch((err) => {
+    if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
+      if (!hasQuotaError) {
+        hasQuotaError = true;
+        console.warn('Firestore quota exceeded. Running in high-performance local storage fallback mode.');
+      }
+    } else {
+      console.warn('safeSetDoc warning:', err);
+    }
+  });
 };
 
-import { safeLocalStorage } from '../lib/storage';
+import { safeLocalStorage, safeToLower } from '../lib/storage';
 
 import {
   User,
@@ -310,7 +323,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           safeSetDoc(doc(db, 'users', u.id), u);
         });
       } else {
-        const hasAdmin = list.some((u) => (u.email || '').toLowerCase() === 'satyam443355@gmail.com');
+        const hasAdmin = (users || []).some((u) => u && safeToLower(u.email) === 'satyam443355@gmail.com');
         if (!hasAdmin) {
           const adminUser = INITIAL_USERS[0];
           safeSetDoc(doc(db, 'users', adminUser.id), adminUser);
@@ -319,7 +332,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
       checkLoaded();
     }, (err) => {
-      console.error("Firestore users sync error:", err);
+      if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
+        hasQuotaError = true;
+      } else {
+        console.warn("Firestore users sync notice:", err?.message);
+      }
       checkLoaded();
     });
 
@@ -339,7 +356,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setIsLoadingStores(false);
       checkLoaded();
     }, (err) => {
-      console.error("Firestore stores sync error:", err);
+      if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
+        hasQuotaError = true;
+      } else {
+        console.warn("Firestore stores sync notice:", err?.message);
+      }
       setIsLoadingStores(false);
       checkLoaded();
     });
@@ -360,7 +381,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setIsLoadingProducts(false);
       checkLoaded();
     }, (err) => {
-      console.error("Firestore products sync error:", err);
+      if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
+        hasQuotaError = true;
+      } else {
+        console.warn("Firestore products sync notice:", err?.message);
+      }
       setIsLoadingProducts(false);
       checkLoaded();
     });
@@ -375,7 +400,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setOrders(list);
       checkLoaded();
     }, (err) => {
-      console.error("Firestore orders sync error:", err);
+      if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
+        hasQuotaError = true;
+      } else {
+        console.warn("Firestore orders sync notice:", err?.message);
+      }
       checkLoaded();
     });
 
@@ -393,7 +422,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setCoupons(list);
       }
     }, (err) => {
-      console.error("Firestore coupons sync error:", err);
+      if (!err?.message?.includes('Quota exceeded') && err?.code !== 'resource-exhausted') {
+        console.warn("Firestore coupons sync notice:", err?.message);
+      }
     });
 
     // 6. Banners snapshot listener
@@ -410,7 +441,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setBanners(list);
       }
     }, (err) => {
-      console.error("Firestore banners sync error:", err);
+      if (!err?.message?.includes('Quota exceeded') && err?.code !== 'resource-exhausted') {
+        console.warn("Firestore banners sync notice:", err?.message);
+      }
     });
 
     // 7. Notifications snapshot listener
@@ -428,7 +461,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setNotifications(list);
       }
     }, (err) => {
-      console.error("Firestore notifications sync error:", err);
+      if (!err?.message?.includes('Quota exceeded') && err?.code !== 'resource-exhausted') {
+        console.warn("Firestore notifications sync notice:", err?.message);
+      }
     });
 
     // 8. Reviews snapshot listener
@@ -439,7 +474,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       setReviews(list);
     }, (err) => {
-      console.error("Firestore reviews sync error:", err);
+      if (!err?.message?.includes('Quota exceeded') && err?.code !== 'resource-exhausted') {
+        console.warn("Firestore reviews sync notice:", err?.message);
+      }
     });
 
     return () => {
@@ -458,8 +495,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     if (users.length > 0) {
       if (currentUser) {
-        const cloudUser = users.find(
-          (u) => u.id === currentUser.id || (u.email && u.email.toLowerCase() === currentUser.email.toLowerCase())
+        const cloudUser = (users || []).find(
+          (u) => u && (u.id === currentUser.id || (u.email && currentUser?.email && safeToLower(u.email) === safeToLower(currentUser.email)))
         );
         if (cloudUser && JSON.stringify(cloudUser) !== JSON.stringify(currentUser)) {
           setCurrentUser(cloudUser);
@@ -470,8 +507,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           try {
             const savedObj = JSON.parse(savedRaw);
             if (savedObj && savedObj.id) {
-              const matchedCloudUser = users.find(
-                (u) => u.id === savedObj.id || (u.email && u.email.toLowerCase() === savedObj.email.toLowerCase())
+              const matchedCloudUser = (users || []).find(
+                (u) => u && (u.id === savedObj.id || (u.email && savedObj.email && safeToLower(u.email) === safeToLower(savedObj.email)))
               );
               if (matchedCloudUser) {
                 setCurrentUser(matchedCloudUser);
@@ -576,7 +613,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const login = (email: string, pass: string, targetRole?: UserRole) => {
-    const cleanInput = (email || '').trim().toLowerCase();
+    const cleanInput = safeToLower(email).trim();
     const cleanDigits = cleanInput.replace(/\D/g, '');
 
     // STRICT Admin check for satyam443355@gmail.com
@@ -588,7 +625,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         };
       }
 
-      let adminUser = users.find((u) => (u.email || '').toLowerCase() === 'satyam443355@gmail.com');
+      let adminUser = (users || []).find((u) => u && safeToLower(u.email) === 'satyam443355@gmail.com');
       if (!adminUser) {
         adminUser = {
           id: 'user_admin',
@@ -612,11 +649,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return { success: true, message: 'Welcome back, Satyam (Society Admin)!' };
     }
 
-    const foundUser = users.find((u) => {
-      const uEmail = (u.email || '').trim().toLowerCase();
+    const foundUser = (users || []).find((u) => {
+      if (!u) return false;
+      const uEmail = safeToLower(u.email).trim();
       const uMobileDigits = (u.mobile || '').replace(/\D/g, '');
-      const uStore = stores.find((s) => s.ownerId === u.id || s.id === u.storeId);
-      const uStoreName = (uStore?.name || '').trim().toLowerCase();
+      const uStore = stores.find((s) => s && (s.ownerId === u.id || s.id === u.storeId));
+      const uStoreName = safeToLower(uStore?.name).trim();
 
       const matchEmail = uEmail === cleanInput;
       const matchMobile = cleanDigits.length >= 7 && uMobileDigits.includes(cleanDigits);
@@ -646,8 +684,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const signup = (userData: { fullName: string; email: string; mobile: string; address: string; password?: string }) => {
-    const formattedEmail = (userData?.email || '').trim().toLowerCase();
-    const existing = users.find((u) => (u.email || '').toLowerCase() === formattedEmail);
+    const formattedEmail = safeToLower(userData?.email).trim();
+    const existing = (users || []).find((u) => u && safeToLower(u.email) === formattedEmail);
     if (existing) {
       return { success: false, message: 'An account with this email already exists. Please login instead.' };
     }
@@ -675,7 +713,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     storeName: string,
     category: string
   ): Product[] => {
-    const lowerCat = (category || '').toLowerCase();
+    const lowerCat = safeToLower(category);
     const now = Date.now();
 
     if (lowerCat.includes('grocery') || lowerCat.includes('essentials') || lowerCat.includes('supermarket')) {
@@ -953,8 +991,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     blockLocation: string;
     categories?: string[];
   }) => {
-    const formattedEmail = (ownerData?.email || '').trim().toLowerCase();
-    const existing = users.find((u) => (u.email || '').toLowerCase() === formattedEmail);
+    const formattedEmail = safeToLower(ownerData?.email).trim();
+    const existing = (users || []).find((u) => u && safeToLower(u.email) === formattedEmail);
     if (existing) {
       return { success: false, message: 'An account with this email already exists. Please login instead.' };
     }
@@ -1174,13 +1212,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         description: '100% OFF on entire order',
       };
     } else if (formatted === 'WELCOME5') {
-      const userEmail = (currentUser?.email || '').toLowerCase();
+      const userEmail = safeToLower(currentUser?.email);
       const userId = currentUser?.id;
 
-      const alreadyUsed = orders.some((ord) => {
+      const alreadyUsed = (orders || []).some((ord) => {
+        if (!ord) return false;
         const matchesUser =
           (userId && ord.customerId === userId) ||
-          (userEmail && (ord.customerEmail || '').toLowerCase() === userEmail);
+          (userEmail && safeToLower(ord.customerEmail) === userEmail);
         return matchesUser && ord.couponCode === 'WELCOME5';
       });
 

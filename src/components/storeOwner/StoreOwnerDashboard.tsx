@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { ProductGridSkeleton } from '../skeletons/ProductCardSkeleton';
 import { Product, OrderStatus } from '../../types';
+import { safeToLower } from '../../lib/storage';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -242,12 +243,13 @@ export const StoreOwnerDashboard: React.FC = () => {
   });
 
   // Get Store owned by this user with fallback to name and mobile matching
-  const store = stores.find(
+  const store = (stores || []).find(
     (s) =>
-      s.ownerId === currentUser?.id ||
-      s.id === currentUser?.storeId ||
-      (s.ownerName && currentUser?.fullName && s.ownerName.trim().toLowerCase() === currentUser.fullName.trim().toLowerCase()) ||
-      (s.ownerPhone && currentUser?.mobile && s.ownerPhone.replace(/\D/g, '') === currentUser.mobile.replace(/\D/g, ''))
+      s &&
+      (s.ownerId === currentUser?.id ||
+       s.id === currentUser?.storeId ||
+       (s.ownerName && currentUser?.fullName && safeToLower(s.ownerName).trim() === safeToLower(currentUser.fullName).trim()) ||
+       (s.ownerPhone && currentUser?.mobile && s.ownerPhone.replace(/\D/g, '') === currentUser.mobile.replace(/\D/g, '')))
   );
 
   // If stores are currently loading from cloud Firestore, show loading indicator
@@ -507,12 +509,12 @@ export const StoreOwnerDashboard: React.FC = () => {
     if (orderFilterTab === 'delivered' && o.status !== 'delivered') return false;
 
     // Search query
-    if (orderSearchQuery.trim()) {
-      const q = orderSearchQuery.toLowerCase();
-      const matchId = o.id.toLowerCase().includes(q);
-      const matchCustomer = o.customerName.toLowerCase().includes(q);
-      const matchPhone = o.customerMobile.toLowerCase().includes(q);
-      const matchAddress = o.deliveryAddress.toLowerCase().includes(q);
+    if (safeToLower(orderSearchQuery).trim()) {
+      const q = safeToLower(orderSearchQuery);
+      const matchId = safeToLower(o.id).includes(q);
+      const matchCustomer = safeToLower(o.customerName).includes(q);
+      const matchPhone = safeToLower(o.customerMobile).includes(q);
+      const matchAddress = safeToLower(o.deliveryAddress).includes(q);
       return matchId || matchCustomer || matchPhone || matchAddress;
     }
 

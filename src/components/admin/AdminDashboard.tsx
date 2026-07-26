@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { Store, User, Order, Product, Coupon, Banner, AppNotification } from '../../types';
+import { safeToLower } from '../../lib/storage';
 import {
   ShieldCheck,
   Store as StoreIcon,
@@ -425,46 +426,46 @@ export const AdminDashboard: React.FC = () => {
   // Filtering data for displays
   const filteredUsers = (users || []).filter((u) => {
     if (!u) return false;
-    const term = (searchUsers || '').trim().toLowerCase();
+    const term = safeToLower(searchUsers).trim();
     if (!term) return true;
     if (term === 'banned') return Boolean(u.isBanned);
     return (
-      (u.fullName || '').toLowerCase().includes(term) ||
-      (u.id || '').toLowerCase().includes(term) ||
-      (u.email || '').toLowerCase().includes(term) ||
-      (u.mobile || '').includes(term) ||
-      (u.address || '').toLowerCase().includes(term) ||
-      (u.role || '').toLowerCase().includes(term)
+      safeToLower(u.fullName).includes(term) ||
+      safeToLower(u.id).includes(term) ||
+      safeToLower(u.email).includes(term) ||
+      safeToLower(u.mobile).includes(term) ||
+      safeToLower(u.address).includes(term) ||
+      safeToLower(u.role).includes(term)
     );
   });
 
   const filteredStores = (stores || []).filter((s) => {
     if (!s) return false;
-    const term = (searchStores || '').trim().toLowerCase();
+    const term = safeToLower(searchStores).trim();
     if (!term) return true;
     if (term === 'pending') return s.status === 'pending';
     if (term === 'active') return s.status === 'active';
     return (
-      (s.name || '').toLowerCase().includes(term) ||
-      (s.id || '').toLowerCase().includes(term) ||
-      (s.ownerName || '').toLowerCase().includes(term) ||
-      (s.blockLocation || '').toLowerCase().includes(term) ||
-      (s.category || '').toLowerCase().includes(term) ||
-      (s.status || '').toLowerCase().includes(term)
+      safeToLower(s.name).includes(term) ||
+      safeToLower(s.id).includes(term) ||
+      safeToLower(s.ownerName).includes(term) ||
+      safeToLower(s.blockLocation).includes(term) ||
+      safeToLower(s.category).includes(term) ||
+      safeToLower(s.status).includes(term)
     );
   });
 
   const filteredOrders = (orders || []).filter((o) => {
     if (!o) return false;
-    const term = (searchOrders || '').trim().toLowerCase();
+    const term = safeToLower(searchOrders).trim();
     if (!term) return true;
     return (
-      (o.id || '').toLowerCase().includes(term) ||
-      (o.customerName || '').toLowerCase().includes(term) ||
-      (o.customerId || '').toLowerCase().includes(term) ||
-      (o.storeName || '').toLowerCase().includes(term) ||
-      (o.status || '').toLowerCase().includes(term) ||
-      (o.deliveryAddress || '').toLowerCase().includes(term)
+      safeToLower(o.id).includes(term) ||
+      safeToLower(o.customerName).includes(term) ||
+      safeToLower(o.customerId).includes(term) ||
+      safeToLower(o.storeName).includes(term) ||
+      safeToLower(o.status).includes(term) ||
+      safeToLower(o.deliveryAddress).includes(term)
     );
   });
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MarketplaceProvider, useMarketplace } from './context/MarketplaceContext';
-import { safeLocalStorage } from './lib/storage';
+import { safeLocalStorage, safeToLower } from './lib/storage';
 import { motion } from 'motion/react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
@@ -88,7 +88,7 @@ function MarketplaceApp() {
     const trimmed = (query || '').trim();
     if (!trimmed) return;
     setRecentSearches((prev) => {
-      const filtered = (prev || []).filter((item) => (typeof item === 'string' ? item : '').toLowerCase() !== trimmed.toLowerCase());
+      const filtered = (prev || []).filter((item) => safeToLower(item) !== safeToLower(trimmed));
       return [trimmed, ...filtered].slice(0, 8);
     });
   };
@@ -134,16 +134,17 @@ function MarketplaceApp() {
 
   // Filter products based on search query, category, and store selection
   const filteredProducts = (products || []).filter((p) => {
-    const query = searchQuery || '';
+    if (!p) return false;
+    const query = safeToLower(searchQuery).trim();
     const matchesSearch =
-      !query.trim() ||
-      (p.name || '').toLowerCase().includes(query.toLowerCase()) ||
-      (p.category || '').toLowerCase().includes(query.toLowerCase()) ||
-      (p.description || '').toLowerCase().includes(query.toLowerCase());
+      !query ||
+      safeToLower(p.name).includes(query) ||
+      safeToLower(p.category).includes(query) ||
+      safeToLower(p.description).includes(query);
 
     const selCat = selectedCategory || 'All';
     const matchesCategory =
-      selCat === 'All' || (p.category || '').toLowerCase() === selCat.toLowerCase();
+      selCat === 'All' || safeToLower(p.category) === safeToLower(selCat);
 
     const matchesStore = !selectedStoreId || p.storeId === selectedStoreId;
 

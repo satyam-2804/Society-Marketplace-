@@ -1,3 +1,13 @@
+export const safeToLower = (val: unknown): string => {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val.toLowerCase();
+  try {
+    return String(val).toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
 // Safe localStorage wrapper to prevent crashes in private browsing, in-app mobile browsers, and iframe environments.
 const memoryStorage: Record<string, string> = {};
 

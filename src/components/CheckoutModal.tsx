@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
+import { safeToLower } from '../lib/storage';
 import { X, MapPin, Phone, User, QrCode, CreditCard, Banknote, Clock, ArrowRight, ShieldCheck, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -46,7 +47,7 @@ export const CheckoutModal: React.FC = () => {
 
   const shopkeeperUpiId =
     store?.upiId ||
-    (store?.name ? `${(store.name || '').toLowerCase().replace(/[^a-z0-9]/g, '')}@okaxis` : 'shopkeeper@upi');
+    (store?.name ? `${safeToLower(store.name).replace(/[^a-z0-9]/g, '')}@okaxis` : 'shopkeeper@upi');
 
   const handleCopyUpi = () => {
     navigator.clipboard.writeText(shopkeeperUpiId);
