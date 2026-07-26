@@ -58,24 +58,37 @@ export const CheckoutModal: React.FC = () => {
     e.preventDefault();
     setErrorMsg(null);
 
+    if (!fullName.trim()) {
+      setErrorMsg('Please enter your full name.');
+      return;
+    }
+    if (!mobile.trim()) {
+      setErrorMsg('Please enter your mobile number.');
+      return;
+    }
     if (!deliveryAddress.trim()) {
       setErrorMsg('Please enter your complete society address (Tower & Flat number).');
       return;
     }
 
-    const res = placeOrder(deliveryAddress, 'cod', notes);
-    if (!res.success) {
-      setErrorMsg(res.message);
-    } else {
-      try {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      } catch (err) {
-        // fallback
+    try {
+      const res = placeOrder(deliveryAddress, 'cod', notes);
+      if (!res.success) {
+        setErrorMsg(res.message);
+      } else {
+        try {
+          confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        } catch (err) {
+          // fallback
+        }
       }
+    } catch (err: any) {
+      console.error('Order placement error:', err);
+      setErrorMsg(err?.message || 'Failed to place order. Please try again.');
     }
   };
 

@@ -1488,6 +1488,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       `You received a new order of ₹${totalAmount} from ${userToUse.fullName}. Please accept or decline in your dashboard.`
     );
 
+    setOrders((prev) => [newOrder, ...prev]);
     setLastPlacedOrder(newOrder);
     setActiveOrderTrackId(newOrderId);
     clearCart();
