@@ -70,15 +70,13 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({ 
           <h3 className="text-2xl font-black text-slate-900">Order Placed Successfully!</h3>
           <p className="text-xs text-slate-500 mt-1 font-medium">Order #{lastPlacedOrder.id} sent to store owner</p>
 
-          {/* Live Delivery Countdown */}
-          <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
-            <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-center gap-1.5">
-              <Clock className="w-4 h-4 text-emerald-600" /> Doorstep Delivery Timer
-            </p>
-            <div className="text-3xl font-black text-emerald-800 font-mono my-1 tracking-widest">
-              {formattedTime}
+          {/* Estimated Delivery Message */}
+          <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+            <div className="flex items-center justify-center gap-2 text-emerald-900 font-black text-sm mb-1.5">
+              <Clock className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>You will receive your order within 20 minutes</span>
             </div>
-            <p className="text-[11px] text-emerald-700 font-medium">Society runner is packing and delivering to your flat</p>
+            <p className="text-xs text-emerald-700 font-medium">Society runner is packing and delivering directly to your flat.</p>
           </div>
 
           {/* Order Details Summary */}

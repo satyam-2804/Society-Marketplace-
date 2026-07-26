@@ -209,10 +209,6 @@ export const StoreOwnerDashboard: React.FC = () => {
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('');
 
-  // Shopkeeper UPI ID states
-  const [storeUpiId, setStoreUpiId] = useState('');
-  const [upiSavedNotice, setUpiSavedNotice] = useState(false);
-
   // Store Timings & Offers states
   const [openingTime, setOpeningTime] = useState('');
   const [closingTime, setClosingTime] = useState('');
@@ -220,20 +216,6 @@ export const StoreOwnerDashboard: React.FC = () => {
 
   // Get Store owned by this user
   const store = stores.find((s) => s.ownerId === currentUser?.id || s.id === currentUser?.storeId);
-
-  React.useEffect(() => {
-    if (store?.upiId) {
-      setStoreUpiId(store.upiId);
-    }
-  }, [store?.upiId]);
-
-  const handleSaveUpi = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!store) return;
-    updateStoreDetails(store.id, { upiId: storeUpiId.trim() });
-    setUpiSavedNotice(true);
-    setTimeout(() => setUpiSavedNotice(false), 2500);
-  };
 
   // If user has no store created yet, show "Register Store" onboarding
   if (!store) {
@@ -455,57 +437,9 @@ export const StoreOwnerDashboard: React.FC = () => {
             <h4 className="font-extrabold text-sm text-amber-900">⏳ Store Approval Pending Admin Authorization</h4>
             <p className="text-xs text-amber-800 mt-1 leading-relaxed">
               Basic shop details for <strong>"{store.name}"</strong> have been submitted to Society Admin (<strong>satyam443355@gmail.com</strong>).
-              Once Admin confirms and approves your store application, you will be able to enter your <strong>Shopkeeper UPI ID</strong> so residents can pay online directly to your account!
+              Once Admin confirms and approves your store application, your store will be live for residents to order!
             </p>
           </div>
-        </div>
-      )}
-
-      {/* Direct UPI Payment Banner when store is active */}
-      {store.status === 'active' && (
-        <div className="bg-gradient-to-r from-emerald-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-md mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
-              <QrCode className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-sm text-white">Direct Online Payments (Shopkeeper UPI ID)</h3>
-                {store.upiId ? (
-                  <span className="bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    ✓ Active
-                  </span>
-                ) : (
-                  <span className="bg-amber-500/30 text-amber-300 border border-amber-400/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    ⚠️ Setup Required
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-300 mt-1">
-                {store.upiId
-                  ? 'Your store is currently configured to receive direct UPI payments at: '
-                  : 'Enter your shopkeeper UPI ID (GPay / PhonePe / Paytm) so customer payments go straight to your account:'}
-                {store.upiId && <strong className="text-emerald-300 font-black underline ml-1">{store.upiId}</strong>}
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleSaveUpi} className="flex items-center gap-2 w-full sm:w-auto">
-            <input
-              type="text"
-              required
-              value={storeUpiId}
-              onChange={(e) => setStoreUpiId(e.target.value)}
-              placeholder="e.g. shopkeeper@upi"
-              className="bg-slate-800/90 border border-slate-700 text-white text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-emerald-400 w-full sm:w-48 placeholder-slate-500"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs transition-all shrink-0 active:scale-95"
-            >
-              {upiSavedNotice ? 'Saved! ✅' : 'Save UPI ID'}
-            </button>
-          </form>
         </div>
       )}
 
@@ -889,33 +823,21 @@ export const StoreOwnerDashboard: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Custom Delivery Fee per Order (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={store.deliveryFee !== undefined ? store.deliveryFee : 15}
+                  onChange={(e) => updateStoreDetails(store.id, { deliveryFee: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-amber-600"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-200">
-            <h4 className="font-extrabold text-sm text-slate-900 mb-1 flex items-center gap-1.5">
-              <QrCode className="w-4 h-4 text-emerald-600" />
-              Direct Online Customer Payments (UPI ID)
-            </h4>
-            <p className="text-xs text-slate-500 mb-3">
-              When residents choose UPI / Online Payment at checkout, money is transferred directly to your shopkeeper UPI address.
-            </p>
-            <form onSubmit={handleSaveUpi} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={storeUpiId}
-                onChange={(e) => setStoreUpiId(e.target.value)}
-                placeholder="e.g. shopkeeper@upi"
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 outline-none focus:bg-white focus:border-emerald-600"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all active:scale-95"
-              >
-                {upiSavedNotice ? 'Saved! ✅' : 'Update UPI ID'}
-              </button>
-            </form>
-          </div>
+
         </div>
       )}
         </>

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db } from '../lib/firebase';
+import { collection, doc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import {
   User,
   UserRole,
@@ -257,68 +259,146 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [isStateLoadedFromCloud, setIsStateLoadedFromCloud] = useState(false);
 
-  // Cloud Backend Sync across devices & phones
+  // Firestore Realtime Sync across devices
   useEffect(() => {
-    fetch('/api/state')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data === 'object') {
-          if (Array.isArray(data.users) && data.users.length > 0) setUsers(data.users);
-          if (Array.isArray(data.stores)) setStores(data.stores);
-          if (Array.isArray(data.products)) setProducts(data.products);
-          if (Array.isArray(data.orders)) setOrders(data.orders);
-          if (Array.isArray(data.notifications)) setNotifications(data.notifications);
-          if (Array.isArray(data.reviews)) setReviews(data.reviews);
-          if (Array.isArray(data.coupons)) setCoupons(data.coupons);
-          if (Array.isArray(data.banners)) setBanners(data.banners);
-        }
+    let loadedCount = 0;
+    const checkLoaded = () => {
+      loadedCount++;
+      if (loadedCount >= 4) {
         setIsStateLoadedFromCloud(true);
-      })
-      .catch((err) => {
-        console.error("Cloud state fetch error:", err);
-        setIsStateLoadedFromCloud(true);
-      });
-
-    const interval = setInterval(() => {
-      fetch('/api/state')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && typeof data === 'object') {
-            if (Array.isArray(data.users)) setUsers(data.users);
-            if (Array.isArray(data.stores)) setStores(data.stores);
-            if (Array.isArray(data.products)) setProducts(data.products);
-            if (Array.isArray(data.orders)) setOrders(data.orders);
-            if (Array.isArray(data.notifications)) setNotifications(data.notifications);
-            if (Array.isArray(data.reviews)) setReviews(data.reviews);
-            if (Array.isArray(data.coupons)) setCoupons(data.coupons);
-            if (Array.isArray(data.banners)) setBanners(data.banners);
-          }
-        })
-        .catch(() => {});
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (!isStateLoadedFromCloud) return;
-
-    const payload = {
-      users,
-      stores,
-      products,
-      orders,
-      coupons,
-      banners,
-      notifications,
-      reviews,
+      }
     };
-    fetch('/api/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  }, [isStateLoadedFromCloud, users, stores, products, orders, coupons, banners, notifications, reviews]);
+
+    // 1. Users snapshot listener
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const list: User[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as User);
+      });
+      if (snapshot.empty) {
+        INITIAL_USERS.forEach((u) => {
+          setDoc(doc(db, 'users', u.id), u);
+        });
+      } else {
+        const hasAdmin = list.some((u) => (u.email || '').toLowerCase() === 'satyam443355@gmail.com');
+        if (!hasAdmin) {
+          const adminUser = INITIAL_USERS[0];
+          setDoc(doc(db, 'users', adminUser.id), adminUser);
+        }
+        setUsers(list);
+      }
+      checkLoaded();
+    }, (err) => {
+      console.error("Firestore users sync error:", err);
+      checkLoaded();
+    });
+
+    // 2. Stores snapshot listener
+    const unsubscribeStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
+      const list: Store[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Store);
+      });
+      setStores(list);
+      checkLoaded();
+    }, (err) => {
+      console.error("Firestore stores sync error:", err);
+      checkLoaded();
+    });
+
+    // 3. Products snapshot listener
+    const unsubscribeProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      const list: Product[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Product);
+      });
+      setProducts(list);
+      checkLoaded();
+    }, (err) => {
+      console.error("Firestore products sync error:", err);
+      checkLoaded();
+    });
+
+    // 4. Orders snapshot listener
+    const unsubscribeOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      const list: Order[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Order);
+      });
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOrders(list);
+      checkLoaded();
+    }, (err) => {
+      console.error("Firestore orders sync error:", err);
+      checkLoaded();
+    });
+
+    // 5. Coupons snapshot listener
+    const unsubscribeCoupons = onSnapshot(collection(db, 'coupons'), (snapshot) => {
+      const list: Coupon[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Coupon);
+      });
+      if (snapshot.empty) {
+        INITIAL_COUPONS.forEach((c) => {
+          setDoc(doc(db, 'coupons', c.id), c);
+        });
+      } else {
+        setCoupons(list);
+      }
+    });
+
+    // 6. Banners snapshot listener
+    const unsubscribeBanners = onSnapshot(collection(db, 'banners'), (snapshot) => {
+      const list: Banner[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Banner);
+      });
+      if (snapshot.empty) {
+        INITIAL_BANNERS.forEach((b) => {
+          setDoc(doc(db, 'banners', b.id), b);
+        });
+      } else {
+        setBanners(list);
+      }
+    });
+
+    // 7. Notifications snapshot listener
+    const unsubscribeNotifications = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+      const list: AppNotification[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as AppNotification);
+      });
+      if (snapshot.empty) {
+        INITIAL_NOTIFICATIONS.forEach((n) => {
+          setDoc(doc(db, 'notifications', n.id), n);
+        });
+      } else {
+        list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setNotifications(list);
+      }
+    });
+
+    // 8. Reviews snapshot listener
+    const unsubscribeReviews = onSnapshot(collection(db, 'reviews'), (snapshot) => {
+      const list: Review[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Review);
+      });
+      setReviews(list);
+    });
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeStores();
+      unsubscribeProducts();
+      unsubscribeOrders();
+      unsubscribeCoupons();
+      unsubscribeBanners();
+      unsubscribeNotifications();
+      unsubscribeReviews();
+    };
+  }, []);
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -409,7 +489,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const login = (email: string, pass: string, targetRole?: UserRole) => {
-    const formattedEmail = email.trim().toLowerCase();
+    const formattedEmail = (email || '').trim().toLowerCase();
 
     // STRICT Admin check for satyam443355@gmail.com
     if (targetRole === 'admin' || formattedEmail === 'satyam443355@gmail.com') {
@@ -420,7 +500,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         };
       }
 
-      let adminUser = users.find((u) => u.email.toLowerCase() === 'satyam443355@gmail.com');
+      let adminUser = users.find((u) => (u.email || '').toLowerCase() === 'satyam443355@gmail.com');
       if (!adminUser) {
         adminUser = {
           id: 'user_admin',
@@ -444,7 +524,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return { success: true, message: 'Welcome back, Satyam (Society Admin)!' };
     }
 
-    const foundUser = users.find((u) => u.email.toLowerCase() === formattedEmail);
+    const foundUser = users.find((u) => (u.email || '').toLowerCase() === formattedEmail);
 
     if (!foundUser) {
       return { success: false, message: 'No account found with this email. Please Sign Up.' };
@@ -467,24 +547,24 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const signup = (userData: { fullName: string; email: string; mobile: string; address: string; password?: string }) => {
-    const formattedEmail = userData.email.trim().toLowerCase();
-    const existing = users.find((u) => u.email.toLowerCase() === formattedEmail);
+    const formattedEmail = (userData?.email || '').trim().toLowerCase();
+    const existing = users.find((u) => (u.email || '').toLowerCase() === formattedEmail);
     if (existing) {
       return { success: false, message: 'An account with this email already exists. Please login instead.' };
     }
 
     const newUser: User = {
       id: 'user_' + Date.now(),
-      fullName: userData.fullName.trim(),
+      fullName: (userData?.fullName || '').trim(),
       email: formattedEmail,
-      mobile: userData.mobile.trim(),
-      address: userData.address.trim(),
+      mobile: (userData?.mobile || '').trim(),
+      address: (userData?.address || '').trim(),
       role: 'customer',
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userData.fullName)}`,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userData?.fullName || 'user')}`,
       createdAt: new Date().toISOString(),
     };
 
-    setUsers((prev) => [...prev, newUser]);
+    setDoc(doc(db, 'users', newUser.id), newUser);
     setCurrentUser(newUser);
     setCurrentRole('customer');
     setIsAuthModalOpen(false);
@@ -500,8 +580,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     storeCategory: string;
     blockLocation: string;
   }) => {
-    const formattedEmail = ownerData.email.trim().toLowerCase();
-    const existing = users.find((u) => u.email.toLowerCase() === formattedEmail);
+    const formattedEmail = (ownerData?.email || '').trim().toLowerCase();
+    const existing = users.find((u) => (u.email || '').toLowerCase() === formattedEmail);
     if (existing) {
       return { success: false, message: 'An account with this email already exists. Please login instead.' };
     }
@@ -542,8 +622,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       totalSales: 0,
     };
 
-    setUsers((prev) => [...prev, newUser]);
-    setStores((prev) => [newStore, ...prev]);
+    setDoc(doc(db, 'users', newUser.id), newUser);
+    setDoc(doc(db, 'stores', newStore.id), newStore);
     setCurrentUser(newUser);
     setCurrentRole('store_owner');
     setIsAuthModalOpen(false);
@@ -558,7 +638,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isRead: false,
       type: 'announcement',
     };
-    setNotifications((prev) => [notif, ...prev]);
+    setDoc(doc(db, 'notifications', notif.id), notif);
 
     return {
       success: true,
@@ -601,7 +681,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!currentUser) return;
     const updated = { ...currentUser, ...data };
     setCurrentUser(updated);
-    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updated : u)));
+    setDoc(doc(db, 'users', currentUser.id), data, { merge: true });
   };
 
   // Shopping Cart logic
@@ -688,13 +768,13 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         description: '100% OFF on entire order',
       };
     } else if (formatted === 'WELCOME5') {
-      const userEmail = currentUser?.email?.toLowerCase();
+      const userEmail = (currentUser?.email || '').toLowerCase();
       const userId = currentUser?.id;
 
       const alreadyUsed = orders.some((ord) => {
         const matchesUser =
           (userId && ord.customerId === userId) ||
-          (userEmail && ord.customerEmail?.toLowerCase() === userEmail);
+          (userEmail && (ord.customerEmail || '').toLowerCase() === userEmail);
         return matchesUser && ord.couponCode === 'WELCOME5';
       });
 
@@ -764,6 +844,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (subtotal === 0) return 0;
     const store = getCartStore();
     if (activeCoupon?.code === 'FREEDEL' || activeCoupon?.code === 'PREETU' || subtotal >= 199) return 0;
+    if (store && store.deliveryFee !== undefined) {
+      return store.deliveryFee;
+    }
     return store ? 15 : 20;
   };
 
@@ -772,6 +855,137 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const discount = getCartDiscount();
     const delivery = getCartDeliveryFee();
     return Math.max(0, subtotal - discount + delivery);
+  };
+
+  const sendOrderEmail = async (order: Order, ownerEmail: string) => {
+    try {
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toEmail: ownerEmail,
+          orderId: order.id,
+          customerName: order.customerName,
+          customerMobile: order.customerMobile,
+          deliveryAddress: order.deliveryAddress,
+          items: order.items,
+          totalAmount: order.totalAmount,
+          storeName: order.storeName,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to send order email:", err);
+    }
+  };
+
+  const sendCustomerReceiptEmail = async (order: Order) => {
+    try {
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toEmail: order.customerEmail,
+          orderId: order.id,
+          customerName: order.customerName,
+          customerMobile: order.customerMobile,
+          deliveryAddress: order.deliveryAddress,
+          items: order.items,
+          totalAmount: order.totalAmount,
+          storeName: order.storeName,
+          customerReceipt: true,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to send customer receipt email:", err);
+    }
+  };
+
+  const sendStatusEmail = async (order: Order, status: string) => {
+    try {
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toEmail: order.customerEmail,
+          orderId: order.id,
+          customerName: order.customerName,
+          customerMobile: order.customerMobile,
+          deliveryAddress: order.deliveryAddress,
+          totalAmount: order.totalAmount,
+          storeName: order.storeName,
+          statusUpdate: true,
+          status,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to send status update email:", err);
+    }
+  };
+
+  const sendPushNotification = async (userId: string, title: string, message: string, fcmToken?: string) => {
+    try {
+      await fetch('/api/send-fcm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          title,
+          message,
+          fcmToken,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to trigger FCM push notification:", err);
+    }
+  };
+
+  const registerFcmToken = async (userId: string) => {
+    try {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+      
+      const { messaging } = await import('../lib/firebase');
+      const { getToken } = await import('firebase/messaging');
+
+      if (!messaging) {
+        const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
+        await setDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        try {
+          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          const token = await getToken(messaging, {
+            serviceWorkerRegistration: registration,
+            vapidKey: 'BDbCOo0n3vX-G8fFmbyDozh9D21415RmsG_43fN-G06ZclFvF0oUOn4H3gM-r1XqR_8-76YxW7O2_F7vK7o_9xQ',
+          });
+
+          if (token) {
+            await setDoc(doc(db, 'users', userId), { fcmToken: token }, { merge: true });
+            console.log("FCM Token registered successfully:", token);
+          } else {
+            throw new Error("Empty token received");
+          }
+        } catch (tokenErr) {
+          console.warn("FCM getToken failed, utilizing simulated FCM token:", tokenErr);
+          const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
+          await setDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
+        }
+      } else {
+        const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
+        await setDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
+      }
+    } catch (err) {
+      console.warn("FCM integration error:", err);
+    }
   };
 
   // Place order
@@ -845,24 +1059,19 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       ],
     };
 
-    // Deduct stock
-    setProducts((prev) =>
-      prev.map((p) => {
-        const inCart = cart.find((c) => c.product.id === p.id);
-        if (inCart) {
-          return { ...p, stock: Math.max(0, p.stock - inCart.quantity) };
-        }
-        return p;
-      })
-    );
+    // Deduct stock in Firestore
+    cart.forEach((item) => {
+      const p = products.find((prod) => prod.id === item.product.id);
+      if (p) {
+        setDoc(doc(db, 'products', p.id), { stock: Math.max(0, p.stock - item.quantity) }, { merge: true });
+      }
+    });
 
-    // Update store sales
-    setStores((prev) =>
-      prev.map((s) => (s.id === store.id ? { ...s, totalSales: (s.totalSales || 0) + totalAmount } : s))
-    );
+    // Update store sales in Firestore
+    setDoc(doc(db, 'stores', store.id), { totalSales: (store.totalSales || 0) + totalAmount }, { merge: true });
 
-    // Add Order
-    setOrders((prev) => [newOrder, ...prev]);
+    // Add Order in Firestore
+    setDoc(doc(db, 'orders', newOrder.id), newOrder);
 
     // Push notification for Customer
     const custNotification: AppNotification = {
@@ -886,7 +1095,21 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       type: 'order',
     };
 
-    setNotifications((prev) => [custNotification, storeNotification, ...prev]);
+    setDoc(doc(db, 'notifications', custNotification.id), custNotification);
+    setDoc(doc(db, 'notifications', storeNotification.id), storeNotification);
+
+    // Send email alert to shopkeeper & receipt to customer
+    const storeOwner = users.find((u) => u.id === store.ownerId);
+    const ownerEmail = storeOwner?.email || 'satyam443355@gmail.com';
+    sendOrderEmail(newOrder, ownerEmail);
+    sendCustomerReceiptEmail(newOrder);
+
+    // Send FCM push notification to shopkeeper
+    sendPushNotification(
+      store.ownerId,
+      `🚨 New Order #${newOrderId} Placed!`,
+      `You received a new order of ₹${totalAmount} from ${userToUse.fullName}. Please accept or decline in your dashboard.`
+    );
 
     setLastPlacedOrder(newOrder);
     setActiveOrderTrackId(newOrderId);
@@ -899,153 +1122,182 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const updateOrderStatus = (orderId: string, status: OrderStatus, note?: string) => {
     const timestamp = new Date().toISOString();
-    let updatedOrderObj: Order | null = null;
-
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id === orderId) {
-          const updatedHistory = [...o.statusHistory, { status, timestamp, note }];
-          let newPaymentStatus = o.paymentStatus;
-
-          if (status === 'delivered') {
-            newPaymentStatus = 'paid';
-          } else if (status === 'rejected' || status === 'cancelled') {
-            if (o.paymentStatus === 'paid') {
-              newPaymentStatus = 'refunded';
-            }
-          }
-
-          const updated = {
-            ...o,
-            status,
-            paymentStatus: newPaymentStatus,
-            statusHistory: updatedHistory,
-          };
-          updatedOrderObj = updated;
-          return updated;
-        }
-        return o;
-      })
-    );
-
     const targetOrder = orders.find((o) => o.id === orderId);
-    if (targetOrder) {
-      const store = stores.find((s) => s.id === targetOrder.storeId);
-      const storeOwnerId = store?.ownerId || 'all';
+    if (!targetOrder) return;
 
-      if (status === 'accepted') {
-        const cNotif: AppNotification = {
-          id: 'notif_' + Date.now(),
-          userId: targetOrder.customerId,
-          title: `Order #${orderId} Accepted! ✅`,
-          message: `${targetOrder.storeName} accepted your order. Packing items now!`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        const sNotif: AppNotification = {
-          id: 'notif_' + (Date.now() + 1),
-          userId: storeOwnerId,
-          title: `Order #${orderId} Accepted`,
-          message: `You accepted order #${orderId} for resident ${targetOrder.customerName}.`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        setNotifications((prev) => [cNotif, sNotif, ...prev]);
-      } else if (status === 'rejected' || status === 'cancelled') {
-        // Restore stock
-        setProducts((prev) =>
-          prev.map((p) => {
-            const itemInOrder = targetOrder.items.find((it) => it.productId === p.id);
-            if (itemInOrder) {
-              return { ...p, stock: p.stock + itemInOrder.quantity };
-            }
-            return p;
-          })
-        );
+    const updatedHistory = [...targetOrder.statusHistory, { status, timestamp, note }];
+    let newPaymentStatus = targetOrder.paymentStatus;
 
-        const isPaid = targetOrder.paymentStatus === 'paid';
-        const refundMsg = isPaid ? ` Amount ₹${targetOrder.totalAmount} has been refunded to your original payment source.` : '';
-
-        const cNotif: AppNotification = {
-          id: 'notif_' + Date.now(),
-          userId: targetOrder.customerId,
-          title: `Order #${orderId} Declined/Rejected ❌`,
-          message: `Your order was declined by ${targetOrder.storeName}.${refundMsg}`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        const sNotif: AppNotification = {
-          id: 'notif_' + (Date.now() + 1),
-          userId: storeOwnerId,
-          title: `Order #${orderId} Rejected`,
-          message: `Order #${orderId} declined.${isPaid ? ' Payment of ₹' + targetOrder.totalAmount + ' refunded.' : ''}`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        setNotifications((prev) => [cNotif, sNotif, ...prev]);
-      } else if (status === 'out_for_delivery') {
-        const cNotif: AppNotification = {
-          id: 'notif_' + Date.now(),
-          userId: targetOrder.customerId,
-          title: `Out for Delivery! 🛵`,
-          message: `Your order #${orderId} from ${targetOrder.storeName} is out for delivery! Society runner is heading to your flat.`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        const sNotif: AppNotification = {
-          id: 'notif_' + (Date.now() + 1),
-          userId: storeOwnerId,
-          title: `Order #${orderId} Out for Delivery`,
-          message: `Order #${orderId} handed over to delivery runner.`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        setNotifications((prev) => [cNotif, sNotif, ...prev]);
-      } else if (status === 'delivered') {
-        const cNotif: AppNotification = {
-          id: 'notif_' + Date.now(),
-          userId: targetOrder.customerId,
-          title: `Order Delivered! 🎉`,
-          message: `Order #${orderId} from ${targetOrder.storeName} delivered to your doorstep. Thank you for shopping with us! Check your email receipt.`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        const sNotif: AppNotification = {
-          id: 'notif_' + (Date.now() + 1),
-          userId: storeOwnerId,
-          title: `Order #${orderId} Delivered`,
-          message: `Order #${orderId} delivered successfully to ${targetOrder.customerName}.`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        setNotifications((prev) => [cNotif, sNotif, ...prev]);
-
-        // Open Delivered Confirmation Email Receipt Modal
-        if (updatedOrderObj) {
-          setDeliveredEmailOrder(updatedOrderObj);
-        } else {
-          setDeliveredEmailOrder({ ...targetOrder, status: 'delivered', paymentStatus: 'paid' });
-        }
-      } else {
-        const cNotif: AppNotification = {
-          id: 'notif_' + Date.now(),
-          userId: targetOrder.customerId,
-          title: `Order #${orderId} Status Updated`,
-          message: `Status: ${status.replace('_', ' ')}. ${note || ''}`,
-          timestamp,
-          isRead: false,
-          type: 'order',
-        };
-        setNotifications((prev) => [cNotif, ...prev]);
+    if (status === 'delivered') {
+      newPaymentStatus = 'paid';
+    } else if (status === 'rejected' || status === 'cancelled') {
+      if (targetOrder.paymentStatus === 'paid') {
+        newPaymentStatus = 'refunded';
       }
+    }
+
+    const updatedOrderFields = {
+      status,
+      paymentStatus: newPaymentStatus,
+      statusHistory: updatedHistory,
+    };
+
+    // Update order in Firestore
+    setDoc(doc(db, 'orders', orderId), updatedOrderFields, { merge: true });
+
+    // Send order status update email to customer
+    sendStatusEmail({ ...targetOrder, ...updatedOrderFields }, status);
+
+    const store = stores.find((s) => s.id === targetOrder.storeId);
+    const storeOwnerId = store?.ownerId || 'all';
+
+    if (status === 'accepted') {
+      const cNotif: AppNotification = {
+        id: 'notif_' + Date.now(),
+        userId: targetOrder.customerId,
+        title: `Order #${orderId} Accepted! ✅`,
+        message: `${targetOrder.storeName} accepted your order. Packing items now!`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      const sNotif: AppNotification = {
+        id: 'notif_' + (Date.now() + 1),
+        userId: storeOwnerId,
+        title: `Order #${orderId} Accepted`,
+        message: `You accepted order #${orderId} for resident ${targetOrder.customerName}.`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+
+      // Trigger FCM Push to Customer
+      sendPushNotification(
+        targetOrder.customerId,
+        `Order #${orderId} Accepted! ✅`,
+        `${targetOrder.storeName} accepted your order. Packing items now!`
+      );
+    } else if (status === 'rejected' || status === 'cancelled') {
+      // Restore stock
+      targetOrder.items.forEach((it) => {
+        const p = products.find((prod) => prod.id === it.productId);
+        if (p) {
+          setDoc(doc(db, 'products', p.id), { stock: p.stock + it.quantity }, { merge: true });
+        }
+      });
+
+      const isPaid = targetOrder.paymentStatus === 'paid';
+      const refundMsg = isPaid ? ` Amount ₹${targetOrder.totalAmount} has been refunded to your original payment source.` : '';
+
+      const cNotif: AppNotification = {
+        id: 'notif_' + Date.now(),
+        userId: targetOrder.customerId,
+        title: `Order #${orderId} Declined/Rejected ❌`,
+        message: `Your order was declined by ${targetOrder.storeName}.${refundMsg}`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      const sNotif: AppNotification = {
+        id: 'notif_' + (Date.now() + 1),
+        userId: storeOwnerId,
+        title: `Order #${orderId} Rejected`,
+        message: `Order #${orderId} declined.${isPaid ? ' Payment of ₹' + targetOrder.totalAmount + ' refunded.' : ''}`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+
+      // Trigger FCM Push to Customer
+      sendPushNotification(
+        targetOrder.customerId,
+        `Order #${orderId} Declined/Rejected ❌`,
+        `Your order was declined by ${targetOrder.storeName}.${refundMsg}`
+      );
+    } else if (status === 'out_for_delivery') {
+      const cNotif: AppNotification = {
+        id: 'notif_' + Date.now(),
+        userId: targetOrder.customerId,
+        title: `Out for Delivery! 🛵`,
+        message: `Your order #${orderId} from ${targetOrder.storeName} is out for delivery! Society runner is heading to your flat.`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      const sNotif: AppNotification = {
+        id: 'notif_' + (Date.now() + 1),
+        userId: storeOwnerId,
+        title: `Order #${orderId} Out for Delivery`,
+        message: `Order #${orderId} handed over to delivery runner.`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+
+      // Trigger FCM Push to Customer
+      sendPushNotification(
+        targetOrder.customerId,
+        `Out for Delivery! 🛵`,
+        `Your order #${orderId} from ${targetOrder.storeName} is out for delivery! Society runner is heading to your flat.`
+      );
+    } else if (status === 'delivered') {
+      const cNotif: AppNotification = {
+        id: 'notif_' + Date.now(),
+        userId: targetOrder.customerId,
+        title: `Order Delivered! 🎉`,
+        message: `Order #${orderId} from ${targetOrder.storeName} delivered to your doorstep. Thank you for shopping with us! Check your email receipt.`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      const sNotif: AppNotification = {
+        id: 'notif_' + (Date.now() + 1),
+        userId: storeOwnerId,
+        title: `Order #${orderId} Delivered`,
+        message: `Order #${orderId} delivered successfully to ${targetOrder.customerName}.`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+
+      // Open Delivered Confirmation Email Receipt Modal
+      setDeliveredEmailOrder({
+        ...targetOrder,
+        ...updatedOrderFields,
+      });
+
+      // Trigger FCM Push to Customer
+      sendPushNotification(
+        targetOrder.customerId,
+        `Order Delivered! 🎉`,
+        `Order #${orderId} from ${targetOrder.storeName} delivered to your doorstep. Thank you for shopping with us!`
+      );
+    } else {
+      const cNotif: AppNotification = {
+        id: 'notif_' + Date.now(),
+        userId: targetOrder.customerId,
+        title: `Order #${orderId} Status Updated`,
+        message: `Status: ${status.replace('_', ' ')}. ${note || ''}`,
+        timestamp,
+        isRead: false,
+        type: 'order',
+      };
+      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
+
+      // Trigger FCM Push to Customer
+      sendPushNotification(
+        targetOrder.customerId,
+        `Order #${orderId} Status Updated`,
+        `Status: ${status.replace('_', ' ')}. ${note || ''}`
+      );
     }
   };
 
@@ -1088,8 +1340,6 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       totalSales: 0,
     };
 
-    setStores((prev) => [newStore, ...prev]);
-
     const updatedUser: User = {
       ...currentUser,
       role: 'store_owner',
@@ -1098,7 +1348,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
     setCurrentUser(updatedUser);
     setCurrentRole('store_owner');
-    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+
+    setDoc(doc(db, 'stores', newStore.id), newStore);
+    setDoc(doc(db, 'users', currentUser.id), updatedUser);
 
     // Notify Admin (satyam443355@gmail.com)
     const notif: AppNotification = {
@@ -1110,7 +1362,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isRead: false,
       type: 'announcement',
     };
-    setNotifications((prev) => [notif, ...prev]);
+    setDoc(doc(db, 'notifications', notif.id), notif);
 
     return {
       success: true,
@@ -1119,69 +1371,76 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const loadDemoStores = () => {
-    setStores(DEMO_STORES);
-    setProducts(DEMO_PRODUCTS);
+    DEMO_STORES.forEach((s) => {
+      setDoc(doc(db, 'stores', s.id), s);
+    });
+    DEMO_PRODUCTS.forEach((p) => {
+      setDoc(doc(db, 'products', p.id), p);
+    });
   };
 
   const clearAllStores = () => {
-    setStores([]);
-    setProducts([]);
+    stores.forEach((s) => {
+      deleteDoc(doc(db, 'stores', s.id));
+    });
+    products.forEach((p) => {
+      deleteDoc(doc(db, 'products', p.id));
+    });
   };
 
   // Store Owner CRUD
   const addProduct = (data: Omit<Product, 'id' | 'rating' | 'reviewsCount'>) => {
+    const id = 'prod_' + Date.now();
     const newProd: Product = {
       ...data,
-      id: 'prod_' + Date.now(),
+      id,
       rating: 5.0,
       reviewsCount: 1,
     };
-    setProducts((prev) => [newProd, ...prev]);
+    setDoc(doc(db, 'products', id), newProd);
   };
 
   const editProduct = (productId: string, data: Partial<Product>) => {
-    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, ...data } : p)));
+    setDoc(doc(db, 'products', productId), data, { merge: true });
   };
 
   const deleteProduct = (productId: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    deleteDoc(doc(db, 'products', productId));
   };
 
   const toggleProductStock = (productId: string) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, isAvailable: !p.isAvailable } : p))
-    );
+    const p = products.find((prod) => prod.id === productId);
+    if (p) {
+      setDoc(doc(db, 'products', productId), { isAvailable: !p.isAvailable }, { merge: true });
+    }
   };
 
   const updateStoreDetails = (storeId: string, data: Partial<Store>) => {
-    setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, ...data } : s)));
+    setDoc(doc(db, 'stores', storeId), data, { merge: true });
   };
 
   // Admin CRUD
   const addStore = (storeData: Omit<Store, 'id' | 'rating' | 'reviewsCount' | 'totalSales'>) => {
+    const id = 'store_' + Date.now();
     const newStore: Store = {
       ...storeData,
-      id: 'store_' + Date.now(),
+      id,
       rating: 5.0,
       reviewsCount: 0,
       totalSales: 0,
     };
-    setStores((prev) => [...prev, newStore]);
+    setDoc(doc(db, 'stores', id), newStore);
   };
 
   const toggleStoreStatus = (storeId: string, status: 'active' | 'suspended') => {
-    setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, status } : s)));
+    setDoc(doc(db, 'stores', storeId), { status }, { merge: true });
   };
 
   const approveStore = (storeId: string) => {
     const targetStore = stores.find((s) => s.id === storeId);
-    setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, status: 'active' } : s)));
-
     if (targetStore) {
-      // Approve user if pending
-      setUsers((prev) =>
-        prev.map((u) => (u.id === targetStore.ownerId ? { ...u, isApproved: true } : u))
-      );
+      setDoc(doc(db, 'stores', storeId), { status: 'active' }, { merge: true });
+      setDoc(doc(db, 'users', targetStore.ownerId), { isApproved: true }, { merge: true });
 
       // Send notification to owner
       const notif: AppNotification = {
@@ -1193,15 +1452,15 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'announcement',
       };
-      setNotifications((prev) => [notif, ...prev]);
+      setDoc(doc(db, 'notifications', notif.id), notif);
     }
   };
 
   const rejectStore = (storeId: string) => {
     const targetStore = stores.find((s) => s.id === storeId);
-    setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, status: 'suspended' } : s)));
-
     if (targetStore) {
+      setDoc(doc(db, 'stores', storeId), { status: 'suspended' }, { merge: true });
+
       const notif: AppNotification = {
         id: 'notif_store_rejected_' + Date.now(),
         userId: targetStore.ownerId,
@@ -1211,33 +1470,37 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'announcement',
       };
-      setNotifications((prev) => [notif, ...prev]);
+      setDoc(doc(db, 'notifications', notif.id), notif);
     }
   };
 
   const approveStoreOwner = (userId: string) => {
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isApproved: true } : u)));
+    setDoc(doc(db, 'users', userId), { isApproved: true }, { merge: true });
   };
 
   const addCoupon = (coupon: Omit<Coupon, 'id'>) => {
-    const newCoupon: Coupon = { ...coupon, id: 'coupon_' + Date.now() };
-    setCoupons((prev) => [newCoupon, ...prev]);
+    const id = 'coupon_' + Date.now();
+    const newCoupon: Coupon = { ...coupon, id };
+    setDoc(doc(db, 'coupons', id), newCoupon);
   };
 
   const toggleCoupon = (couponId: string) => {
-    setCoupons((prev) =>
-      prev.map((c) => (c.id === couponId ? { ...c, isActive: !c.isActive } : c))
-    );
+    const c = coupons.find((coupon) => coupon.id === couponId);
+    if (c) {
+      setDoc(doc(db, 'coupons', couponId), { isActive: !c.isActive }, { merge: true });
+    }
   };
 
   const addBanner = (banner: Omit<Banner, 'id'>) => {
-    const newBanner: Banner = { ...banner, id: 'banner_' + Date.now() };
-    setBanners((prev) => [newBanner, ...prev]);
+    const id = 'banner_' + Date.now();
+    const newBanner: Banner = { ...banner, id };
+    setDoc(doc(db, 'banners', id), newBanner);
   };
 
   const broadcastNotification = (title: string, message: string) => {
+    const id = 'notif_broadcast_' + Date.now();
     const notif: AppNotification = {
-      id: 'notif_broadcast_' + Date.now(),
+      id,
       userId: 'all',
       title,
       message,
@@ -1245,81 +1508,112 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isRead: false,
       type: 'announcement',
     };
-    setNotifications((prev) => [notif, ...prev]);
+    setDoc(doc(db, 'notifications', id), notif);
   };
 
   const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    setDoc(doc(db, 'notifications', id), { isRead: true }, { merge: true });
   };
 
   const toggleBanUser = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const isBanned = !u.isBanned;
-          if (isBanned && currentUser?.id === userId) {
-            setTimeout(() => logout(), 0);
-          }
-          return { ...u, isBanned };
-        }
-        return u;
-      })
-    );
+    const u = users.find((user) => user.id === userId);
+    if (u) {
+      const isBanned = !u.isBanned;
+      setDoc(doc(db, 'users', userId), { isBanned }, { merge: true });
+      if (isBanned && currentUser?.id === userId) {
+        setTimeout(() => logout(), 0);
+      }
+    }
   };
 
   const deleteStore = (storeId: string) => {
-    setStores((prev) => prev.filter((s) => s.id !== storeId));
-    setProducts((prev) => prev.filter((p) => p.storeId !== storeId));
+    deleteDoc(doc(db, 'stores', storeId));
+    products.forEach((p) => {
+      if (p.storeId === storeId) {
+        deleteDoc(doc(db, 'products', p.id));
+      }
+    });
   };
 
   const addReview = (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
+    const id = 'rev_' + Date.now();
     const newReview: Review = {
       ...reviewData,
-      id: 'rev_' + Date.now(),
+      id,
       createdAt: new Date().toISOString(),
     };
 
+    setDoc(doc(db, 'reviews', id), newReview);
+
     // Calculate updated ratings
     if (reviewData.productId) {
-      setProducts((prevProducts) =>
-        prevProducts.map((prod) => {
-          if (prod.id === reviewData.productId) {
-            const currentProductReviews = [newReview, ...reviews].filter((r) => r.productId === prod.id);
-            const totalRatingSum = currentProductReviews.reduce((sum, r) => sum + r.rating, 0);
-            const newCount = currentProductReviews.length;
-            const newRating = Number((totalRatingSum / newCount).toFixed(1));
-            return {
-              ...prod,
-              rating: newRating,
-              reviewsCount: newCount,
-            };
-          }
-          return prod;
-        })
-      );
+      const prod = products.find((p) => p.id === reviewData.productId);
+      if (prod) {
+        const currentProductReviews = [newReview, ...reviews].filter((r) => r.productId === prod.id);
+        const totalRatingSum = currentProductReviews.reduce((sum, r) => sum + r.rating, 0);
+        const newCount = currentProductReviews.length;
+        const newRating = Number((totalRatingSum / newCount).toFixed(1));
+        setDoc(doc(db, 'products', prod.id), { rating: newRating, reviewsCount: newCount }, { merge: true });
+      }
     }
 
     if (reviewData.storeId) {
-      setStores((prevStores) =>
-        prevStores.map((st) => {
-          if (st.id === reviewData.storeId) {
-            const currentStoreReviews = [newReview, ...reviews].filter((r) => r.storeId === st.id);
-            const totalRatingSum = currentStoreReviews.reduce((sum, r) => sum + r.rating, 0);
-            const newCount = currentStoreReviews.length;
-            const newRating = Number((totalRatingSum / newCount).toFixed(1));
-            return {
-              ...st,
-              rating: newRating,
-              reviewsCount: newCount,
-            };
-          }
-          return st;
-        })
-      );
+      const st = stores.find((s) => s.id === reviewData.storeId);
+      if (st) {
+        const currentStoreReviews = [newReview, ...reviews].filter((r) => r.storeId === st.id);
+        const totalRatingSum = currentStoreReviews.reduce((sum, r) => sum + r.rating, 0);
+        const newCount = currentStoreReviews.length;
+        const newRating = Number((totalRatingSum / newCount).toFixed(1));
+        setDoc(doc(db, 'stores', st.id), { rating: newRating, reviewsCount: newCount }, { merge: true });
+      }
     }
-
-    setReviews((prev) => [newReview, ...prev]);
   };
+
+  // Native Browser Notifications trigger
+  const [lastNotifiedId, setLastNotifiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUser || notifications.length === 0) return;
+
+    // Get the most recent unread notification for this user
+    const myUnread = notifications.filter(
+      (n) => (n.userId === currentUser.id || n.userId === 'all') && !n.isRead
+    );
+
+    if (myUnread.length === 0) return;
+
+    const latest = myUnread[0]; // notifications are already sorted desc by timestamp
+    
+    // Check if we already notified about this ID
+    if (latest.id === lastNotifiedId) return;
+
+    // Check if the notification is fresh (created in the last 15 seconds) to avoid spamming historical alerts on boot
+    const ageMs = Date.now() - new Date(latest.timestamp).getTime();
+    if (ageMs > 15000) return;
+
+    setLastNotifiedId(latest.id);
+
+    // Trigger Browser Notification
+    if (window.Notification && Notification.permission === 'granted') {
+      try {
+        const title = latest.title;
+        const options = {
+          body: latest.message,
+          icon: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
+          silent: false,
+        };
+        new Notification(title, options);
+      } catch (err) {
+        console.error("Failed to trigger native notification:", err);
+      }
+    }
+  }, [notifications, currentUser, lastNotifiedId]);
+
+  useEffect(() => {
+    if (currentUser) {
+      registerFcmToken(currentUser.id);
+    }
+  }, [currentUser]);
 
   return (
     <MarketplaceContext.Provider

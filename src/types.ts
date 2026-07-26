@@ -12,6 +12,7 @@ export interface User {
   createdAt: string;
   isApproved?: boolean; // For store owners or users
   isBanned?: boolean; // Banned state for customers/users
+  fcmToken?: string; // FCM Cloud Messaging registration token
 }
 
 export interface Product {
@@ -48,6 +49,7 @@ export interface Store {
   status: 'active' | 'suspended' | 'pending';
   deliveryTimeMinutes: number; // e.g., 15-20 mins
   minOrderAmount: number;
+  deliveryFee?: number; // Custom delivery fee set by store owner
   upiId?: string; // Shopkeeper UPI ID for direct online payments (e.g. shopkeeper@upi)
   totalSales?: number;
   offers?: string[];

@@ -79,17 +79,17 @@ function MarketplaceApp() {
 
   // Helper to add query to recent searches
   const handleAddSearchQuery = (query: string) => {
-    const trimmed = query.trim();
+    const trimmed = (query || '').trim();
     if (!trimmed) return;
     setRecentSearches((prev) => {
-      const filtered = prev.filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
+      const filtered = (prev || []).filter((item) => (typeof item === 'string' ? item : '').toLowerCase() !== trimmed.toLowerCase());
       return [trimmed, ...filtered].slice(0, 8);
     });
   };
 
   // Helper to remove individual query
   const handleRemoveRecentSearch = (queryToRemove: string) => {
-    setRecentSearches((prev) => prev.filter((item) => item !== queryToRemove));
+    setRecentSearches((prev) => (prev || []).filter((item) => item !== queryToRemove));
   };
 
   // Helper to clear all recent searches
@@ -117,15 +117,17 @@ function MarketplaceApp() {
   }, [currentRole, activeView]);
 
   // Filter products based on search query, category, and store selection
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = (products || []).filter((p) => {
+    const query = searchQuery || '';
     const matchesSearch =
-      !searchQuery.trim() ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase());
+      !query.trim() ||
+      (p.name || '').toLowerCase().includes(query.toLowerCase()) ||
+      (p.category || '').toLowerCase().includes(query.toLowerCase()) ||
+      (p.description || '').toLowerCase().includes(query.toLowerCase());
 
+    const selCat = selectedCategory || 'All';
     const matchesCategory =
-      selectedCategory === 'All' || p.category.toLowerCase() === selectedCategory.toLowerCase();
+      selCat === 'All' || (p.category || '').toLowerCase() === selCat.toLowerCase();
 
     const matchesStore = !selectedStoreId || p.storeId === selectedStoreId;
 

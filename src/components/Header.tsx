@@ -51,6 +51,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  );
 
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const unreadNotifs = notifications.filter((n) => !n.isRead && (n.userId === 'all' || n.userId === currentUser?.id));
@@ -194,6 +197,33 @@ export const Header: React.FC<HeaderProps> = ({
                         </h4>
                         <span className="text-xs text-slate-500 font-medium">{notifications.length} total</span>
                       </div>
+
+                      {typeof window !== 'undefined' && 'Notification' in window && notifPermission === 'default' && (
+                        <div className="my-2 p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex flex-col gap-1.5 items-start text-xs text-emerald-800">
+                          <p className="font-bold flex items-center gap-1.5 text-slate-900">
+                            <Smartphone className="w-4 h-4 text-emerald-600 animate-bounce" /> Enable Blinkit-style Alerts?
+                          </p>
+                          <p className="text-[10px] text-emerald-700/90 font-medium leading-relaxed">
+                            Get instant status updates for order accepted, out-for-delivery, and delivered on your screen!
+                          </p>
+                          <button
+                            onClick={async () => {
+                              const res = await Notification.requestPermission();
+                              setNotifPermission(res);
+                              if (res === 'granted') {
+                                new Notification("🎉 Push Notifications Enabled!", {
+                                  body: "You will now get instant Blinkit-style notifications for your orders!",
+                                  icon: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80",
+                                });
+                              }
+                            }}
+                            className="w-full text-center px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-colors text-[10px] shadow-sm shadow-emerald-600/10 cursor-pointer"
+                          >
+                            Turn On Notifications
+                          </button>
+                        </div>
+                      )}
+
                       <div className="max-h-80 overflow-y-auto space-y-2 mt-3 pr-1">
                         {notifications.length === 0 ? (
                           <p className="text-xs text-slate-400 text-center py-6">No notifications yet</p>

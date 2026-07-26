@@ -423,36 +423,36 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // Filtering data for displays
-  const filteredUsers = users.filter((u) => {
-    const term = searchUsers.toLowerCase();
+  const filteredUsers = (users || []).filter((u) => {
+    const term = (searchUsers || '').toLowerCase();
     return (
-      u.fullName.toLowerCase().includes(term) ||
-      u.id.toLowerCase().includes(term) ||
-      u.email.toLowerCase().includes(term) ||
-      u.mobile.includes(term) ||
-      u.address.toLowerCase().includes(term)
+      (u.fullName || '').toLowerCase().includes(term) ||
+      (u.id || '').toLowerCase().includes(term) ||
+      (u.email || '').toLowerCase().includes(term) ||
+      (u.mobile || '').includes(term) ||
+      (u.address || '').toLowerCase().includes(term)
     );
   });
 
-  const filteredStores = stores.filter((s) => {
-    const term = searchStores.toLowerCase();
+  const filteredStores = (stores || []).filter((s) => {
+    const term = (searchStores || '').toLowerCase();
     return (
-      s.name.toLowerCase().includes(term) ||
-      s.id.toLowerCase().includes(term) ||
-      s.ownerName.toLowerCase().includes(term) ||
-      s.blockLocation.toLowerCase().includes(term) ||
-      s.category.toLowerCase().includes(term)
+      (s.name || '').toLowerCase().includes(term) ||
+      (s.id || '').toLowerCase().includes(term) ||
+      (s.ownerName || '').toLowerCase().includes(term) ||
+      (s.blockLocation || '').toLowerCase().includes(term) ||
+      (s.category || '').toLowerCase().includes(term)
     );
   });
 
-  const filteredOrders = orders.filter((o) => {
-    const term = searchOrders.toLowerCase();
+  const filteredOrders = (orders || []).filter((o) => {
+    const term = (searchOrders || '').toLowerCase();
     return (
-      o.id.toLowerCase().includes(term) ||
-      o.customerName.toLowerCase().includes(term) ||
-      o.customerId.toLowerCase().includes(term) ||
-      o.storeName.toLowerCase().includes(term) ||
-      o.status.toLowerCase().includes(term)
+      (o.id || '').toLowerCase().includes(term) ||
+      (o.customerName || '').toLowerCase().includes(term) ||
+      (o.customerId || '').toLowerCase().includes(term) ||
+      (o.storeName || '').toLowerCase().includes(term) ||
+      (o.status || '').toLowerCase().includes(term)
     );
   });
 
