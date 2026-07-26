@@ -1,6 +1,29 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocFromServer } from 'firebase/firestore';
+
+function cleanObject(obj: any): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(cleanObject);
+  }
+  const cleaned: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      cleaned[key] = cleanObject(val);
+    }
+  }
+  return cleaned;
+}
+
+const safeSetDoc = (docRef: any, data: any, options?: any) => {
+  const cleanedData = cleanObject(data);
+  return options ? safeSetDoc(docRef, cleanedData, options) : setDoc(docRef, cleanedData);
+};
+
 import {
   User,
   UserRole,
@@ -286,13 +309,13 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       if (snapshot.empty) {
         INITIAL_USERS.forEach((u) => {
-          setDoc(doc(db, 'users', u.id), u);
+          safeSetDoc(doc(db, 'users', u.id), u);
         });
       } else {
         const hasAdmin = list.some((u) => (u.email || '').toLowerCase() === 'satyam443355@gmail.com');
         if (!hasAdmin) {
           const adminUser = INITIAL_USERS[0];
-          setDoc(doc(db, 'users', adminUser.id), adminUser);
+          safeSetDoc(doc(db, 'users', adminUser.id), adminUser);
         }
         setUsers(list);
       }
@@ -310,7 +333,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       if (snapshot.empty) {
         INITIAL_STORES.forEach((s) => {
-          setDoc(doc(db, 'stores', s.id), s);
+          safeSetDoc(doc(db, 'stores', s.id), s);
         });
       } else {
         setStores(list);
@@ -331,7 +354,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       if (snapshot.empty) {
         INITIAL_PRODUCTS.forEach((p) => {
-          setDoc(doc(db, 'products', p.id), p);
+          safeSetDoc(doc(db, 'products', p.id), p);
         });
       } else {
         setProducts(list);
@@ -366,7 +389,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       if (snapshot.empty) {
         INITIAL_COUPONS.forEach((c) => {
-          setDoc(doc(db, 'coupons', c.id), c);
+          safeSetDoc(doc(db, 'coupons', c.id), c);
         });
       } else {
         setCoupons(list);
@@ -381,7 +404,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       if (snapshot.empty) {
         INITIAL_BANNERS.forEach((b) => {
-          setDoc(doc(db, 'banners', b.id), b);
+          safeSetDoc(doc(db, 'banners', b.id), b);
         });
       } else {
         setBanners(list);
@@ -396,7 +419,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       if (snapshot.empty) {
         INITIAL_NOTIFICATIONS.forEach((n) => {
-          setDoc(doc(db, 'notifications', n.id), n);
+          safeSetDoc(doc(db, 'notifications', n.id), n);
         });
       } else {
         list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -634,7 +657,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       createdAt: new Date().toISOString(),
     };
 
-    setDoc(doc(db, 'users', newUser.id), newUser);
+    safeSetDoc(doc(db, 'users', newUser.id), newUser);
     setCurrentUser(newUser);
     setCurrentRole('customer');
     setIsAuthModalOpen(false);
@@ -981,13 +1004,13 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setIsAuthModalOpen(false);
 
     // 2. Persist User & Store to Firestore in real-time
-    setDoc(doc(db, 'users', newUser.id), newUser);
-    setDoc(doc(db, 'stores', newStore.id), newStore);
+    safeSetDoc(doc(db, 'users', newUser.id), newUser);
+    safeSetDoc(doc(db, 'stores', newStore.id), newStore);
 
     // 3. Generate & Persist Default Product Catalog for this new store in real-time
     const initialProducts = createStarterProductsForStore(newStore.id, newStore.name, newStore.category);
     initialProducts.forEach((prod) => {
-      setDoc(doc(db, 'products', prod.id), prod);
+      safeSetDoc(doc(db, 'products', prod.id), prod);
     });
     setProducts((prev) => [...prev.filter((p) => !initialProducts.some((ip) => ip.id === p.id)), ...initialProducts]);
 
@@ -1015,7 +1038,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isRead: false,
       type: 'announcement',
     };
-    setDoc(doc(db, 'notifications', notif.id), notif);
+    safeSetDoc(doc(db, 'notifications', notif.id), notif);
 
     return {
       success: true,
@@ -1058,7 +1081,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!currentUser) return;
     const updated = { ...currentUser, ...data };
     setCurrentUser(updated);
-    setDoc(doc(db, 'users', currentUser.id), data, { merge: true });
+    safeSetDoc(doc(db, 'users', currentUser.id), data, { merge: true });
   };
 
   // Shopping Cart logic
@@ -1333,7 +1356,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       if (!messaging) {
         const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
-        await setDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
+        await safeSetDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
         return;
       }
 
@@ -1346,7 +1369,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           });
 
           if (token) {
-            await setDoc(doc(db, 'users', userId), { fcmToken: token }, { merge: true });
+            await safeSetDoc(doc(db, 'users', userId), { fcmToken: token }, { merge: true });
             console.log("FCM Token registered successfully:", token);
           } else {
             throw new Error("Empty token received");
@@ -1354,11 +1377,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         } catch (tokenErr) {
           console.warn("FCM getToken failed, utilizing simulated FCM token:", tokenErr);
           const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
-          await setDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
+          await safeSetDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
         }
       } else {
         const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
-        await setDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
+        await safeSetDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
       }
     } catch (err) {
       console.warn("FCM integration error:", err);
@@ -1440,15 +1463,15 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     cart.forEach((item) => {
       const p = products.find((prod) => prod.id === item.product.id);
       if (p) {
-        setDoc(doc(db, 'products', p.id), { stock: Math.max(0, p.stock - item.quantity) }, { merge: true });
+        safeSetDoc(doc(db, 'products', p.id), { stock: Math.max(0, p.stock - item.quantity) }, { merge: true });
       }
     });
 
     // Update store sales in Firestore
-    setDoc(doc(db, 'stores', store.id), { totalSales: (store.totalSales || 0) + totalAmount }, { merge: true });
+    safeSetDoc(doc(db, 'stores', store.id), { totalSales: (store.totalSales || 0) + totalAmount }, { merge: true });
 
     // Add Order in Firestore
-    setDoc(doc(db, 'orders', newOrder.id), newOrder);
+    safeSetDoc(doc(db, 'orders', newOrder.id), newOrder);
 
     // Push notification for Customer
     const custNotification: AppNotification = {
@@ -1472,8 +1495,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       type: 'order',
     };
 
-    setDoc(doc(db, 'notifications', custNotification.id), custNotification);
-    setDoc(doc(db, 'notifications', storeNotification.id), storeNotification);
+    safeSetDoc(doc(db, 'notifications', custNotification.id), custNotification);
+    safeSetDoc(doc(db, 'notifications', storeNotification.id), storeNotification);
 
     // Send email alert to shopkeeper & receipt to customer
     const storeOwner = users.find((u) => u.id === store.ownerId);
@@ -1526,7 +1549,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     );
 
     // 2. Persist to cloud Firestore so customer and store owner see real-time status updates across devices
-    setDoc(doc(db, 'orders', orderId), updatedOrderFields, { merge: true });
+    safeSetDoc(doc(db, 'orders', orderId), updatedOrderFields, { merge: true });
 
     // Send order status update email to customer
     sendStatusEmail({ ...targetOrder, ...updatedOrderFields }, status);
@@ -1553,8 +1576,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'order',
       };
-      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
-      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+      safeSetDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      safeSetDoc(doc(db, 'notifications', sNotif.id), sNotif);
 
       // Trigger FCM Push to Customer
       sendPushNotification(
@@ -1567,7 +1590,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       targetOrder.items.forEach((it) => {
         const p = products.find((prod) => prod.id === it.productId);
         if (p) {
-          setDoc(doc(db, 'products', p.id), { stock: p.stock + it.quantity }, { merge: true });
+          safeSetDoc(doc(db, 'products', p.id), { stock: p.stock + it.quantity }, { merge: true });
         }
       });
 
@@ -1592,8 +1615,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'order',
       };
-      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
-      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+      safeSetDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      safeSetDoc(doc(db, 'notifications', sNotif.id), sNotif);
 
       // Trigger FCM Push to Customer
       sendPushNotification(
@@ -1620,8 +1643,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'order',
       };
-      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
-      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+      safeSetDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      safeSetDoc(doc(db, 'notifications', sNotif.id), sNotif);
 
       // Trigger FCM Push to Customer
       sendPushNotification(
@@ -1648,8 +1671,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'order',
       };
-      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
-      setDoc(doc(db, 'notifications', sNotif.id), sNotif);
+      safeSetDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      safeSetDoc(doc(db, 'notifications', sNotif.id), sNotif);
 
       // Open Delivered Confirmation Email Receipt Modal
       setDeliveredEmailOrder({
@@ -1673,7 +1696,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'order',
       };
-      setDoc(doc(db, 'notifications', cNotif.id), cNotif);
+      safeSetDoc(doc(db, 'notifications', cNotif.id), cNotif);
 
       // Trigger FCM Push to Customer
       sendPushNotification(
@@ -1745,13 +1768,13 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setStores((prev) => [...prev.filter((s) => s.id !== newStoreId), newStore]);
 
     // 2. Persist Store & User to Firestore in real-time
-    setDoc(doc(db, 'stores', newStore.id), newStore);
-    setDoc(doc(db, 'users', currentUser.id), updatedUser);
+    safeSetDoc(doc(db, 'stores', newStore.id), newStore);
+    safeSetDoc(doc(db, 'users', currentUser.id), updatedUser);
 
     // 3. Generate & Persist Default Product Catalog for this new store in real-time
     const initialProducts = createStarterProductsForStore(newStore.id, newStore.name, newStore.category);
     initialProducts.forEach((prod) => {
-      setDoc(doc(db, 'products', prod.id), prod);
+      safeSetDoc(doc(db, 'products', prod.id), prod);
     });
     setProducts((prev) => [...prev.filter((p) => !initialProducts.some((ip) => ip.id === p.id)), ...initialProducts]);
 
@@ -1779,7 +1802,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isRead: false,
       type: 'announcement',
     };
-    setDoc(doc(db, 'notifications', notif.id), notif);
+    safeSetDoc(doc(db, 'notifications', notif.id), notif);
 
     return {
       success: true,
@@ -1789,10 +1812,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const loadDemoStores = () => {
     DEMO_STORES.forEach((s) => {
-      setDoc(doc(db, 'stores', s.id), s);
+      safeSetDoc(doc(db, 'stores', s.id), s);
     });
     DEMO_PRODUCTS.forEach((p) => {
-      setDoc(doc(db, 'products', p.id), p);
+      safeSetDoc(doc(db, 'products', p.id), p);
     });
   };
 
@@ -1815,14 +1838,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       reviewsCount: 1,
     };
     setProducts((prev) => [...prev.filter((p) => p.id !== id), newProd]);
-    setDoc(doc(db, 'products', id), newProd).catch((err) =>
+    safeSetDoc(doc(db, 'products', id), newProd).catch((err) =>
       console.error('Error adding product to Firestore:', err)
     );
   };
 
   const editProduct = (productId: string, data: Partial<Product>) => {
     setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, ...data } : p)));
-    setDoc(doc(db, 'products', productId), data, { merge: true }).catch((err) =>
+    safeSetDoc(doc(db, 'products', productId), data, { merge: true }).catch((err) =>
       console.error(`Error editing product ${productId} in Firestore:`, err)
     );
   };
@@ -1839,7 +1862,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (p) {
       const updated = { isAvailable: !p.isAvailable };
       setProducts((prev) => prev.map((prod) => (prod.id === productId ? { ...prod, ...updated } : prod)));
-      setDoc(doc(db, 'products', productId), updated, { merge: true }).catch((err) =>
+      safeSetDoc(doc(db, 'products', productId), updated, { merge: true }).catch((err) =>
         console.error(`Error toggling product stock for ${productId}:`, err)
       );
     }
@@ -1849,7 +1872,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setStores((prevStores) =>
       prevStores.map((s) => (s.id === storeId ? { ...s, ...data } : s))
     );
-    setDoc(doc(db, 'stores', storeId), data, { merge: true }).catch((err) =>
+    safeSetDoc(doc(db, 'stores', storeId), data, { merge: true }).catch((err) =>
       console.error(`Error updating store ${storeId} in Firestore:`, err)
     );
   };
@@ -1873,12 +1896,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     setStores((prev) => [...prev.filter((s) => s.id !== id), newStore]);
-    setDoc(doc(db, 'stores', id), newStore);
+    safeSetDoc(doc(db, 'stores', id), newStore);
 
     // Initial products catalog for admin created store
     const initialProducts = createStarterProductsForStore(newStore.id, newStore.name, newStore.category);
     initialProducts.forEach((prod) => {
-      setDoc(doc(db, 'products', prod.id), prod);
+      safeSetDoc(doc(db, 'products', prod.id), prod);
     });
     setProducts((prev) => [...prev.filter((p) => !initialProducts.some((ip) => ip.id === p.id)), ...initialProducts]);
 
@@ -1893,14 +1916,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const toggleStoreStatus = (storeId: string, status: 'active' | 'suspended') => {
-    setDoc(doc(db, 'stores', storeId), { status }, { merge: true });
+    safeSetDoc(doc(db, 'stores', storeId), { status }, { merge: true });
   };
 
   const approveStore = (storeId: string) => {
     const targetStore = stores.find((s) => s.id === storeId);
     if (targetStore) {
-      setDoc(doc(db, 'stores', storeId), { status: 'active' }, { merge: true });
-      setDoc(doc(db, 'users', targetStore.ownerId), { isApproved: true }, { merge: true });
+      safeSetDoc(doc(db, 'stores', storeId), { status: 'active' }, { merge: true });
+      safeSetDoc(doc(db, 'users', targetStore.ownerId), { isApproved: true }, { merge: true });
 
       // Send notification to owner
       const notif: AppNotification = {
@@ -1912,14 +1935,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'announcement',
       };
-      setDoc(doc(db, 'notifications', notif.id), notif);
+      safeSetDoc(doc(db, 'notifications', notif.id), notif);
     }
   };
 
   const rejectStore = (storeId: string) => {
     const targetStore = stores.find((s) => s.id === storeId);
     if (targetStore) {
-      setDoc(doc(db, 'stores', storeId), { status: 'suspended' }, { merge: true });
+      safeSetDoc(doc(db, 'stores', storeId), { status: 'suspended' }, { merge: true });
 
       const notif: AppNotification = {
         id: 'notif_store_rejected_' + Date.now(),
@@ -1930,31 +1953,31 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isRead: false,
         type: 'announcement',
       };
-      setDoc(doc(db, 'notifications', notif.id), notif);
+      safeSetDoc(doc(db, 'notifications', notif.id), notif);
     }
   };
 
   const approveStoreOwner = (userId: string) => {
-    setDoc(doc(db, 'users', userId), { isApproved: true }, { merge: true });
+    safeSetDoc(doc(db, 'users', userId), { isApproved: true }, { merge: true });
   };
 
   const addCoupon = (coupon: Omit<Coupon, 'id'>) => {
     const id = 'coupon_' + Date.now();
     const newCoupon: Coupon = { ...coupon, id };
-    setDoc(doc(db, 'coupons', id), newCoupon);
+    safeSetDoc(doc(db, 'coupons', id), newCoupon);
   };
 
   const toggleCoupon = (couponId: string) => {
     const c = coupons.find((coupon) => coupon.id === couponId);
     if (c) {
-      setDoc(doc(db, 'coupons', couponId), { isActive: !c.isActive }, { merge: true });
+      safeSetDoc(doc(db, 'coupons', couponId), { isActive: !c.isActive }, { merge: true });
     }
   };
 
   const addBanner = (banner: Omit<Banner, 'id'>) => {
     const id = 'banner_' + Date.now();
     const newBanner: Banner = { ...banner, id };
-    setDoc(doc(db, 'banners', id), newBanner);
+    safeSetDoc(doc(db, 'banners', id), newBanner);
   };
 
   const broadcastNotification = (title: string, message: string) => {
@@ -1968,18 +1991,18 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isRead: false,
       type: 'announcement',
     };
-    setDoc(doc(db, 'notifications', id), notif);
+    safeSetDoc(doc(db, 'notifications', id), notif);
   };
 
   const markNotificationAsRead = (id: string) => {
-    setDoc(doc(db, 'notifications', id), { isRead: true }, { merge: true });
+    safeSetDoc(doc(db, 'notifications', id), { isRead: true }, { merge: true });
   };
 
   const toggleBanUser = (userId: string) => {
     const u = users.find((user) => user.id === userId);
     if (u) {
       const isBanned = !u.isBanned;
-      setDoc(doc(db, 'users', userId), { isBanned }, { merge: true });
+      safeSetDoc(doc(db, 'users', userId), { isBanned }, { merge: true });
       if (isBanned && currentUser?.id === userId) {
         setTimeout(() => logout(), 0);
       }
@@ -2003,7 +2026,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       createdAt: new Date().toISOString(),
     };
 
-    setDoc(doc(db, 'reviews', id), newReview);
+    safeSetDoc(doc(db, 'reviews', id), newReview);
 
     // Calculate updated ratings
     if (reviewData.productId) {
@@ -2013,7 +2036,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const totalRatingSum = currentProductReviews.reduce((sum, r) => sum + r.rating, 0);
         const newCount = currentProductReviews.length;
         const newRating = Number((totalRatingSum / newCount).toFixed(1));
-        setDoc(doc(db, 'products', prod.id), { rating: newRating, reviewsCount: newCount }, { merge: true });
+        safeSetDoc(doc(db, 'products', prod.id), { rating: newRating, reviewsCount: newCount }, { merge: true });
       }
     }
 
@@ -2024,7 +2047,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const totalRatingSum = currentStoreReviews.reduce((sum, r) => sum + r.rating, 0);
         const newCount = currentStoreReviews.length;
         const newRating = Number((totalRatingSum / newCount).toFixed(1));
-        setDoc(doc(db, 'stores', st.id), { rating: newRating, reviewsCount: newCount }, { merge: true });
+        safeSetDoc(doc(db, 'stores', st.id), { rating: newRating, reviewsCount: newCount }, { merge: true });
       }
     }
   };
