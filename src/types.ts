@@ -35,6 +35,7 @@ export interface Store {
   id: string;
   name: string;
   category: string;
+  categories?: string[];
   ownerId: string;
   ownerName: string;
   ownerPhone: string;

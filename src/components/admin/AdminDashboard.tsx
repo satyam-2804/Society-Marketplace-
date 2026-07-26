@@ -24,6 +24,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Sliders,
   Percent,
   Activity,
@@ -424,35 +425,47 @@ export const AdminDashboard: React.FC = () => {
 
   // Filtering data for displays
   const filteredUsers = (users || []).filter((u) => {
-    const term = (searchUsers || '').toLowerCase();
+    if (!u) return false;
+    const term = (searchUsers || '').trim().toLowerCase();
+    if (!term) return true;
+    if (term === 'banned') return Boolean(u.isBanned);
     return (
       (u.fullName || '').toLowerCase().includes(term) ||
       (u.id || '').toLowerCase().includes(term) ||
       (u.email || '').toLowerCase().includes(term) ||
       (u.mobile || '').includes(term) ||
-      (u.address || '').toLowerCase().includes(term)
+      (u.address || '').toLowerCase().includes(term) ||
+      (u.role || '').toLowerCase().includes(term)
     );
   });
 
   const filteredStores = (stores || []).filter((s) => {
-    const term = (searchStores || '').toLowerCase();
+    if (!s) return false;
+    const term = (searchStores || '').trim().toLowerCase();
+    if (!term) return true;
+    if (term === 'pending') return s.status === 'pending';
+    if (term === 'active') return s.status === 'active';
     return (
       (s.name || '').toLowerCase().includes(term) ||
       (s.id || '').toLowerCase().includes(term) ||
       (s.ownerName || '').toLowerCase().includes(term) ||
       (s.blockLocation || '').toLowerCase().includes(term) ||
-      (s.category || '').toLowerCase().includes(term)
+      (s.category || '').toLowerCase().includes(term) ||
+      (s.status || '').toLowerCase().includes(term)
     );
   });
 
   const filteredOrders = (orders || []).filter((o) => {
-    const term = (searchOrders || '').toLowerCase();
+    if (!o) return false;
+    const term = (searchOrders || '').trim().toLowerCase();
+    if (!term) return true;
     return (
       (o.id || '').toLowerCase().includes(term) ||
       (o.customerName || '').toLowerCase().includes(term) ||
       (o.customerId || '').toLowerCase().includes(term) ||
       (o.storeName || '').toLowerCase().includes(term) ||
-      (o.status || '').toLowerCase().includes(term)
+      (o.status || '').toLowerCase().includes(term) ||
+      (o.deliveryAddress || '').toLowerCase().includes(term)
     );
   });
 
@@ -492,11 +505,17 @@ export const AdminDashboard: React.FC = () => {
       {/* Primary KPI Visual Blocks */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {/* KPI 1: Sales Amount */}
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-2xs transition-shadow relative overflow-hidden group">
+        <div
+          onClick={() => {
+            setActiveTab('orders');
+            setSelectedStoreForProducts(null);
+          }}
+          className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-md hover:border-emerald-300 transition-all relative overflow-hidden group cursor-pointer"
+        >
           <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500" />
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold mb-2">
             <span className="uppercase tracking-wider text-[10px]">Total Revenue</span>
-            <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600">
+            <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600 group-hover:scale-110 transition-transform">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
@@ -508,11 +527,17 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* KPI 2: Total Orders */}
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-2xs transition-shadow relative overflow-hidden group">
+        <div
+          onClick={() => {
+            setActiveTab('orders');
+            setSelectedStoreForProducts(null);
+          }}
+          className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-md hover:border-rose-300 transition-all relative overflow-hidden group cursor-pointer"
+        >
           <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500" />
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold mb-2">
             <span className="uppercase tracking-wider text-[10px]">Total Orders</span>
-            <div className="p-1.5 bg-rose-50 rounded-lg text-rose-600">
+            <div className="p-1.5 bg-rose-50 rounded-lg text-rose-600 group-hover:scale-110 transition-transform">
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
@@ -525,28 +550,42 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* KPI 3: Registered Stores */}
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-2xs transition-shadow relative overflow-hidden group">
+        <div
+          onClick={() => {
+            setActiveTab('stores');
+            setSearchStores(pendingStores.length > 0 ? 'pending' : '');
+            setSelectedStoreForProducts(null);
+          }}
+          className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-md hover:border-amber-300 transition-all relative overflow-hidden group cursor-pointer"
+        >
           <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500" />
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold mb-2">
             <span className="uppercase tracking-wider text-[10px]">Active Outlets</span>
-            <div className="p-1.5 bg-amber-50 rounded-lg text-amber-600">
+            <div className="p-1.5 bg-amber-50 rounded-lg text-amber-600 group-hover:scale-110 transition-transform">
               <StoreIcon className="w-4 h-4" />
             </div>
           </div>
           <p className="text-3xl font-black text-slate-900 tracking-tight">{totalStores}</p>
           <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-400 font-bold">
-            <span className="text-amber-600">{pendingStores.length} Awaiting Launch</span>
+            <span className="text-amber-600 font-extrabold">{pendingStores.length} Awaiting Launch</span>
             <span>•</span>
             <span className="text-emerald-600">{stores.filter(s => s.status === 'active').length} Live</span>
           </div>
         </div>
 
         {/* KPI 4: Resident Users */}
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-2xs transition-shadow relative overflow-hidden group">
+        <div
+          onClick={() => {
+            setActiveTab('users');
+            setSearchUsers('');
+            setSelectedStoreForProducts(null);
+          }}
+          className="bg-white border border-slate-200 p-5 rounded-2xl shadow-3xs hover:shadow-md hover:border-blue-300 transition-all relative overflow-hidden group cursor-pointer"
+        >
           <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold mb-2">
             <span className="uppercase tracking-wider text-[10px]">Resident Directory</span>
-            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
+            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600 group-hover:scale-110 transition-transform">
               <Users className="w-4 h-4" />
             </div>
           </div>
@@ -761,57 +800,162 @@ export const AdminDashboard: React.FC = () => {
           {/* Quick Platform Statistics summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
-              <h3 className="text-base font-black text-slate-900 tracking-tight mb-4">Payment Methods Usage</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-black text-slate-900 tracking-tight">Payment Methods Usage</h3>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200">
+                  Doorstep COD Active
+                </span>
+              </div>
+
               <div className="space-y-3">
-                {['cod', 'upi', 'card'].map((method) => {
-                  const methodOrders = successfulOrders.filter(o => o.paymentMethod === method);
-                  const methodAmount = methodOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-                  const share = totalRevenue > 0 ? Math.round((methodAmount / totalRevenue) * 100) : 0;
-                  
-                  return (
-                    <div key={method} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-slate-200/60 text-slate-700 flex items-center justify-center font-black uppercase text-xs">
-                          {method}
-                        </div>
-                        <div>
-                          <p className="font-bold text-xs text-slate-800 uppercase">{method === 'cod' ? 'Cash on Delivery (COD)' : method === 'upi' ? 'UPI Payments' : 'Credit/Debit Card'}</p>
-                          <p className="text-[10px] text-slate-400 font-semibold">{methodOrders.length} successful orders</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-black text-xs text-slate-900">₹{methodAmount.toLocaleString('en-IN')}</p>
-                        <span className="text-[9px] bg-slate-200/80 text-slate-600 font-bold px-1.5 py-0.5 rounded-md">{share}%</span>
-                      </div>
+                <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-3xs">
+                      COD
                     </div>
-                  );
-                })}
+                    <div>
+                      <p className="font-extrabold text-xs text-slate-900">CASH ON DELIVERY (COD)</p>
+                      <p className="text-[10px] text-emerald-700 font-bold">
+                        {successfulOrders.length} doorstep deliveries processed
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-sm text-slate-900">₹{totalRevenue.toLocaleString('en-IN')}</p>
+                    <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded-md">100% Share</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 font-medium px-1">
+                  💡 All resident orders in Manokamna Apartments strictly operate on <strong className="text-slate-800">Cash on Delivery (COD)</strong> for maximum trust & doorstep safety.
+                </p>
               </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
               <h3 className="text-base font-black text-slate-900 tracking-tight mb-4">Quick Governance Snapshot</h3>
-              <div className="space-y-3 text-xs">
-                <div className="flex justify-between py-2 border-b border-slate-100">
-                  <span className="text-slate-500 font-semibold">Total Registered Residents:</span>
-                  <span className="font-extrabold text-slate-900">{totalCustomers} Units</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-slate-100">
-                  <span className="text-slate-500 font-semibold">Total Registered Shopkeepers:</span>
-                  <span className="font-extrabold text-slate-900">{totalStoreOwners} Owners</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-slate-100">
-                  <span className="text-slate-500 font-semibold">Banned Resident ID Accounts:</span>
-                  <span className="font-bold text-rose-600">{users.filter(u => u.isBanned).length} Banned</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-slate-100">
-                  <span className="text-slate-500 font-semibold">Total Store Coupons Distributed:</span>
-                  <span className="font-extrabold text-slate-900">{coupons.length} Active Codes</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-slate-500 font-semibold">Pending Shop Approvals:</span>
-                  <span className="font-bold text-amber-600">{pendingStores.length} Pending</span>
-                </div>
+              <div className="space-y-2 text-xs">
+                {/* 1. Total Registered Residents */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('users');
+                    setSearchUsers('');
+                    setSelectedStoreForProducts(null);
+                  }}
+                  className="w-full flex items-center justify-between py-2 px-3 rounded-xl hover:bg-blue-50/80 border border-transparent hover:border-blue-200 text-left transition-all cursor-pointer group"
+                  title="Click to view all registered residents"
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="text-slate-700 font-bold group-hover:text-blue-900">Total Registered Residents:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md group-hover:bg-blue-100 group-hover:text-blue-900">
+                      {totalCustomers} Units
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </button>
+
+                {/* 2. Total Registered Shopkeepers */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('stores');
+                    setSearchStores('');
+                    setSelectedStoreForProducts(null);
+                  }}
+                  className="w-full flex items-center justify-between py-2 px-3 rounded-xl hover:bg-amber-50/80 border border-transparent hover:border-amber-200 text-left transition-all cursor-pointer group"
+                  title="Click to view all shopkeepers and stores"
+                >
+                  <div className="flex items-center gap-2">
+                    <StoreIcon className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="text-slate-700 font-bold group-hover:text-amber-900">Total Registered Shopkeepers:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md group-hover:bg-amber-100 group-hover:text-amber-900">
+                      {totalStoreOwners} Owners
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </button>
+
+                {/* 3. Pending Shop Approvals / Requests */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('stores');
+                    setSearchStores('pending');
+                    setSelectedStoreForProducts(null);
+                  }}
+                  className={`w-full flex items-center justify-between py-2 px-3 rounded-xl border text-left transition-all cursor-pointer group ${
+                    pendingStores.length > 0
+                      ? 'bg-amber-50 border-amber-300 hover:bg-amber-100'
+                      : 'hover:bg-slate-50 border-transparent hover:border-slate-200'
+                  }`}
+                  title="Click to review and approve pending store requests"
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className={`w-4 h-4 shrink-0 ${pendingStores.length > 0 ? 'text-amber-600 animate-bounce' : 'text-slate-400'}`} />
+                    <span className="text-slate-800 font-black group-hover:text-amber-950">Pending Shop Approvals:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-black px-2.5 py-0.5 rounded-md text-xs ${
+                      pendingStores.length > 0
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {pendingStores.length} Pending {pendingStores.length > 0 ? ' ⚡ Review Now' : ''}
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </button>
+
+                {/* 4. Banned Resident ID Accounts */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('users');
+                    setSearchUsers('banned');
+                    setSelectedStoreForProducts(null);
+                  }}
+                  className="w-full flex items-center justify-between py-2 px-3 rounded-xl hover:bg-rose-50/80 border border-transparent hover:border-rose-200 text-left transition-all cursor-pointer group"
+                  title="Click to view banned accounts list"
+                >
+                  <div className="flex items-center gap-2">
+                    <Ban className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span className="text-slate-700 font-bold group-hover:text-rose-900">Banned Resident ID Accounts:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md group-hover:bg-rose-100">
+                      {users.filter(u => u.isBanned).length} Banned
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-600 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </button>
+
+                {/* 5. Total Store Coupons Distributed */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('marketing');
+                    setSelectedStoreForProducts(null);
+                  }}
+                  className="w-full flex items-center justify-between py-2 px-3 rounded-xl hover:bg-emerald-50/80 border border-transparent hover:border-emerald-200 text-left transition-all cursor-pointer group"
+                  title="Click to manage store coupons and banners"
+                >
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="text-slate-700 font-bold group-hover:text-emerald-900">Total Store Coupons Distributed:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md group-hover:bg-emerald-100 group-hover:text-emerald-900">
+                      {coupons.length} Active Codes
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </button>
               </div>
             </div>
           </div>
@@ -1153,104 +1297,125 @@ export const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((u) => {
-                  const userOrdersList = orders.filter((o) => o.customerId === u.id);
-                  const userSumSpent = userOrdersList
-                    .filter((o) => o.status !== 'rejected' && o.status !== 'cancelled')
-                    .reduce((sum, o) => sum + o.totalAmount, 0);
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-slate-400">
+                      <Users className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                      <p className="font-bold text-xs text-slate-600">No resident users found</p>
+                      <p className="text-[10px] mt-0.5">Try clearing or changing your search filter: "{searchUsers}"</p>
+                      {searchUsers && (
+                        <button
+                          onClick={() => setSearchUsers('')}
+                          className="mt-3 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg transition-colors"
+                        >
+                          Clear Search
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => {
+                    const userOrdersList = (orders || []).filter((o) => o.customerId === u.id);
+                    const userSumSpent = userOrdersList
+                      .filter((o) => o.status !== 'rejected' && o.status !== 'cancelled')
+                      .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
-                  return (
-                    <tr key={u.id} className={`hover:bg-slate-50/50 ${u.isBanned ? 'bg-rose-50/20' : ''}`}>
-                      {/* Customer ID Column (Clearly displayed & copyable) */}
-                      <td className="p-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-[10px] bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-bold select-all" title="Resident account ID">
-                            {u.id}
-                          </span>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(u.id);
-                              alert(`Resident ID copied: ${u.id}`);
-                            }}
-                            className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                            title="Copy ID"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
+                    const roleStr = (u.role || 'customer').replace('_', ' ');
+                    const avatarUrl = u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
 
-                      {/* Name Card */}
-                      <td className="p-4 font-bold text-slate-900">
-                        <div className="flex items-center gap-2">
-                          <img src={u.avatar} alt={u.fullName} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
-                          <div>
-                            <p className="font-black text-slate-900">{u.fullName}</p>
-                            <p className="text-[10px] text-slate-400 font-semibold">{u.email} • {u.mobile}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* User Role */}
-                      <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                          u.role === 'admin' 
-                            ? 'bg-rose-100 text-rose-800 border border-rose-200' 
-                            : u.role === 'store_owner' 
-                            ? 'bg-amber-100 text-amber-800 border border-amber-200' 
-                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        }`}>
-                          {u.role.replace('_', ' ')}
-                        </span>
-                      </td>
-
-                      {/* Unit No */}
-                      <td className="p-4 text-slate-600 font-medium">{u.address}</td>
-
-                      {/* Orders Quantity */}
-                      <td className="p-4 text-center font-black text-slate-800">
-                        {userOrdersList.length} orders
-                      </td>
-
-                      {/* Sum Spent */}
-                      <td className="p-4 text-right font-black text-slate-900 text-xs">
-                        ₹{userSumSpent.toLocaleString('en-IN')}
-                      </td>
-
-                      {/* Status */}
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                          u.isBanned 
-                            ? 'bg-rose-100 text-rose-800 border border-rose-200' 
-                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        }`}>
-                          {u.isBanned ? 'Banned' : 'Active'}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="p-4 text-right">
-                        {u.role !== 'admin' ? (
-                          <div className="flex items-center justify-end gap-1.5">
+                    return (
+                      <tr key={u.id} className={`hover:bg-slate-50/50 ${u.isBanned ? 'bg-rose-50/20' : ''}`}>
+                        {/* Customer ID Column (Clearly displayed & copyable) */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[10px] bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-bold select-all" title="Resident account ID">
+                              {u.id}
+                            </span>
                             <button
-                              onClick={() => toggleBanUser(u.id)}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all ${
-                                u.isBanned
-                                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                              }`}
+                              onClick={() => {
+                                navigator.clipboard.writeText(u.id);
+                                alert(`Resident ID copied: ${u.id}`);
+                              }}
+                              className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                              title="Copy ID"
                             >
-                              <Ban className="w-3 h-3" />
-                              <span>{u.isBanned ? 'Lift Ban' : 'Ban ID'}</span>
+                              <Copy className="w-3 h-3" />
                             </button>
                           </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 font-semibold italic">System Owner</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+
+                        {/* Name Card */}
+                        <td className="p-4 font-bold text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <img src={avatarUrl} alt={u.fullName || 'User'} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                            <div>
+                              <p className="font-black text-slate-900">{u.fullName || 'Unnamed Resident'}</p>
+                              <p className="text-[10px] text-slate-400 font-semibold">{u.email || 'N/A'} • {u.mobile || 'N/A'}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* User Role */}
+                        <td className="p-4">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                            u.role === 'admin' 
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                              : u.role === 'store_owner' 
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {roleStr}
+                          </span>
+                        </td>
+
+                        {/* Unit No */}
+                        <td className="p-4 text-slate-600 font-medium">{u.address || 'Unit not specified'}</td>
+
+                        {/* Orders Quantity */}
+                        <td className="p-4 text-center font-black text-slate-800">
+                          {userOrdersList.length} orders
+                        </td>
+
+                        {/* Sum Spent */}
+                        <td className="p-4 text-right font-black text-slate-900 text-xs">
+                          ₹{(userSumSpent || 0).toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Status */}
+                        <td className="p-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                            u.isBanned 
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {u.isBanned ? 'Banned' : 'Active'}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="p-4 text-right">
+                          {u.role !== 'admin' ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => toggleBanUser(u.id)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all ${
+                                  u.isBanned
+                                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                                    : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                                }`}
+                              >
+                                <Ban className="w-3 h-3" />
+                                <span>{u.isBanned ? 'Lift Ban' : 'Ban ID'}</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-semibold italic">System Owner</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -1644,19 +1809,15 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Category / Specialty Outlet *</label>
-                <select
+                <label className="block text-xs font-bold text-slate-700 mb-1">Store Category / Purpose *</label>
+                <input
+                  type="text"
+                  required
                   value={storeCategory}
                   onChange={(e) => setStoreCategory(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-600 font-bold"
-                >
-                  <option value="Groceries & Daily Essentials">Groceries & Daily Essentials</option>
-                  <option value="Fresh Fruits & Vegetables">Fresh Fruits & Vegetables</option>
-                  <option value="Bakery & Dairy Outlets">Bakery & Dairy Outlets</option>
-                  <option value="Medicines & Wellness">Medicines & Wellness</option>
-                  <option value="Household & Stationery">Household & Stationery</option>
-                  <option value="Snacks & Beverages">Snacks & Beverages</option>
-                </select>
+                  placeholder="e.g. Stationery, Grocery, Pharmacy, Hardware, Electronics..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-rose-600"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

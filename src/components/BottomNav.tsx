@@ -35,33 +35,33 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
           <span>Shops</span>
         </button>
 
-        {currentRole !== 'admin' && (
-          <>
-            <button
-              onClick={() => setIsCartDrawerOpen(true)}
-              className="relative flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold text-slate-500 hover:text-slate-900"
-            >
-              <div className="relative">
-                <ShoppingBag className="w-5 h-5" />
-                {cartItemsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
-                    {cartItemsCount}
-                  </span>
-                )}
-              </div>
-              <span>Cart</span>
-            </button>
+        {currentRole !== 'admin' && currentRole !== 'store_owner' && (
+          <button
+            onClick={() => setIsCartDrawerOpen(true)}
+            className="relative flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold text-slate-500 hover:text-slate-900"
+          >
+            <div className="relative">
+              <ShoppingBag className="w-5 h-5" />
+              {cartItemsCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+                  {cartItemsCount}
+                </span>
+              )}
+            </div>
+            <span>Cart</span>
+          </button>
+        )}
 
-            <button
-              onClick={() => setActiveView('orders')}
-              className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
-                activeView === 'orders' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <Clock className="w-5 h-5" />
-              <span>Orders</span>
-            </button>
-          </>
+        {currentRole !== 'admin' && (
+          <button
+            onClick={() => setActiveView('orders')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
+              activeView === 'orders' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Clock className="w-5 h-5" />
+            <span>Orders</span>
+          </button>
         )}
 
         {(currentRole === 'admin' || currentRole === 'store_owner') ? (

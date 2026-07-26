@@ -1,6 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMarketplace } from '../../context/MarketplaceContext';
+import { ProductGridSkeleton } from '../skeletons/ProductCardSkeleton';
 import { Product, OrderStatus } from '../../types';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
 import {
   Store as StoreIcon,
   Package,
@@ -181,13 +192,26 @@ export const StoreOwnerDashboard: React.FC = () => {
     updateStoreDetails,
     updateOrderStatus,
     registerStoreForCurrentUser,
+    isLoadingProducts,
+    isLoadingStores,
   } = useMarketplace();
 
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'analytics' | 'settings'>('orders');
+  const [orderFilterTab, setOrderFilterTab] = useState<'all' | 'pending' | 'in_progress' | 'delivered_today' | 'delivered'>('all');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
+  const handleStatusUpdate = (orderId: string, status: any, note: string) => {
+    setUpdatingOrderId(orderId);
+    updateOrderStatus(orderId, status, note);
+    setTimeout(() => {
+      setUpdatingOrderId(null);
+    }, 400);
+  };
 
   // New Store Registration Form state (when store doesn't exist)
   const [newStoreName, setNewStoreName] = useState('');
-  const [newStoreCategory, setNewStoreCategory] = useState('Groceries & Daily Essentials');
+  const [newStoreCategory, setNewStoreCategory] = useState('Grocery');
   const [newStoreLocation, setNewStoreLocation] = useState('Block A, Shop #01');
   const [newStorePhone, setNewStorePhone] = useState(currentUser?.mobile || '');
   const [newStoreOpen, setNewStoreOpen] = useState('08:00 AM');
@@ -213,9 +237,29 @@ export const StoreOwnerDashboard: React.FC = () => {
   const [openingTime, setOpeningTime] = useState('');
   const [closingTime, setClosingTime] = useState('');
   const [newOffer, setNewOffer] = useState('');
+  const [pushEnabled, setPushEnabled] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
+  });
 
-  // Get Store owned by this user
-  const store = stores.find((s) => s.ownerId === currentUser?.id || s.id === currentUser?.storeId);
+  // Get Store owned by this user with fallback to name and mobile matching
+  const store = stores.find(
+    (s) =>
+      s.ownerId === currentUser?.id ||
+      s.id === currentUser?.storeId ||
+      (s.ownerName && currentUser?.fullName && s.ownerName.trim().toLowerCase() === currentUser.fullName.trim().toLowerCase()) ||
+      (s.ownerPhone && currentUser?.mobile && s.ownerPhone.replace(/\D/g, '') === currentUser.mobile.replace(/\D/g, ''))
+  );
+
+  // If stores are currently loading from cloud Firestore, show loading indicator
+  if (isLoadingStores) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
+        <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-sm font-bold text-slate-800">Connecting to Cloud & Synchronizing Your Shop...</p>
+        <p className="text-xs text-slate-500 mt-1">Please wait a moment while your registered store details are fetched.</p>
+      </div>
+    );
+  }
 
   // If user has no store created yet, show "Register Store" onboarding
   if (!store) {
@@ -263,18 +307,15 @@ export const StoreOwnerDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Category *</label>
-                <select
+                <label className="block text-xs font-bold text-slate-700 mb-1">Store Category / Purpose *</label>
+                <input
+                  type="text"
+                  required
                   value={newStoreCategory}
                   onChange={(e) => setNewStoreCategory(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:border-emerald-600 outline-none"
-                >
-                  <option value="Groceries & Daily Essentials">Groceries & Daily Essentials</option>
-                  <option value="Fresh Vegetables & Organic Fruits">Fresh Vegetables & Fruits</option>
-                  <option value="Medicines & First Aid">Medicines & Pharmacy</option>
-                  <option value="Bakery, Milk & Snacks">Bakery, Dairy & Snacks</option>
-                  <option value="Home Services & Hardware">Home Services & Hardware</option>
-                </select>
+                  placeholder="e.g. Stationery, Grocery, Pharmacy, Hardware, Bakery..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-900 focus:bg-white focus:border-emerald-600 outline-none"
+                />
               </div>
 
               <div>
@@ -357,6 +398,126 @@ export const StoreOwnerDashboard: React.FC = () => {
     .reduce((sum, o) => sum + o.totalAmount, 0);
 
   const pendingOrders = storeOrders.filter((o) => o.status === 'pending');
+  const inProgressOrders = storeOrders.filter(
+    (o) => o.status === 'accepted' || o.status === 'preparing' || o.status === 'out_for_delivery'
+  );
+  const allDeliveredOrders = storeOrders.filter((o) => o.status === 'delivered');
+
+  const prevPendingCountRef = useRef(pendingOrders.length);
+
+  const requestPushPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          setPushEnabled(true);
+          new Notification('🔔 Order Push Alerts Active!', {
+            body: `Push notifications are enabled. You will get instant order alerts for ${store.name}!`,
+            icon: '/icon-192.png',
+          });
+        }
+      } catch (err) {
+        console.error("Push permission error:", err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (pendingOrders.length > prevPendingCountRef.current) {
+      // Trigger Web Push Notification
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification(`🚨 New Order Received for ${store.name}!`, {
+          body: `You received a new resident order. Tap to view and accept immediately!`,
+          icon: '/icon-192.png',
+        });
+      }
+
+      // Play audio chime alert
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.4);
+        }
+      } catch (e) {
+        console.log("Audio chime error:", e);
+      }
+    }
+    prevPendingCountRef.current = pendingOrders.length;
+  }, [pendingOrders.length, store.name]);
+
+  // Today's delivered orders calculation
+  const todayDateStr = new Date().toDateString();
+  const deliveredTodayOrders = storeOrders.filter(
+    (o) => o.status === 'delivered' && new Date(o.createdAt).toDateString() === todayDateStr
+  );
+  const deliveredTodayCount = deliveredTodayOrders.length;
+  const deliveredTodayRevenue = deliveredTodayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+  // 7-day performance chart data for Recharts
+  const chartData = React.useMemo(() => {
+    const daysMap: { [key: string]: { date: string; revenue: number; ordersCount: number } } = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      const fullDateKey = d.toDateString();
+      daysMap[fullDateKey] = { date: dateStr, revenue: 0, ordersCount: 0 };
+    }
+
+    storeOrders.forEach((o) => {
+      if (o.status === 'delivered') {
+        const oDateKey = new Date(o.createdAt).toDateString();
+        if (daysMap[oDateKey]) {
+          daysMap[oDateKey].revenue += o.totalAmount;
+          daysMap[oDateKey].ordersCount += 1;
+        }
+      }
+    });
+
+    return Object.values(daysMap);
+  }, [storeOrders]);
+
+  // Filtered orders list based on selected filter tab and search query
+  const filteredStoreOrders = storeOrders.filter((o) => {
+    // Filter tab
+    if (orderFilterTab === 'pending' && o.status !== 'pending') return false;
+    if (
+      orderFilterTab === 'in_progress' &&
+      o.status !== 'accepted' &&
+      o.status !== 'preparing' &&
+      o.status !== 'out_for_delivery'
+    )
+      return false;
+    if (
+      orderFilterTab === 'delivered_today' &&
+      !(o.status === 'delivered' && new Date(o.createdAt).toDateString() === todayDateStr)
+    )
+      return false;
+    if (orderFilterTab === 'delivered' && o.status !== 'delivered') return false;
+
+    // Search query
+    if (orderSearchQuery.trim()) {
+      const q = orderSearchQuery.toLowerCase();
+      const matchId = o.id.toLowerCase().includes(q);
+      const matchCustomer = o.customerName.toLowerCase().includes(q);
+      const matchPhone = o.customerMobile.toLowerCase().includes(q);
+      const matchAddress = o.deliveryAddress.toLowerCase().includes(q);
+      return matchId || matchCustomer || matchPhone || matchAddress;
+    }
+
+    return true;
+  });
 
   const openAddProductModal = () => {
     setEditingProductId(null);
@@ -478,7 +639,18 @@ export const StoreOwnerDashboard: React.FC = () => {
         </div>
 
         {store.status !== 'pending' && (
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+            <button
+              onClick={requestPushPermission}
+              className={`flex-1 md:flex-none px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all flex items-center justify-center gap-1.5 ${
+                pushEnabled
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 animate-pulse'
+              }`}
+              title="Click to enable instant Web Push order notifications"
+            >
+              <span>{pushEnabled ? '🔔 Push Alerts Active' : '🔔 Enable Push Alerts'}</span>
+            </button>
             <button
               onClick={() => updateStoreDetails(store.id, { isOpen: !store.isOpen })}
               className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
@@ -523,94 +695,247 @@ export const StoreOwnerDashboard: React.FC = () => {
       ) : (
         <>
           {/* Overview Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-            <span>Total Sales</span>
-            <DollarSign className="w-4 h-4 text-emerald-600" />
-          </div>
-          <p className="text-2xl font-black text-slate-900">₹{totalStoreSales.toLocaleString('en-IN')}</p>
-          <p className="text-[10px] text-emerald-700 font-medium mt-1">From resident orders</p>
-        </div>
-
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-            <span>Pending Orders</span>
-            <Clock className="w-4 h-4 text-amber-600" />
-          </div>
-          <p className="text-2xl font-black text-amber-600">{pendingOrders.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Action required</p>
-        </div>
-
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-            <span>Total Products</span>
-            <Package className="w-4 h-4 text-indigo-600" />
-          </div>
-          <p className="text-2xl font-black text-slate-900">{storeProducts.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Active items listed</p>
-        </div>
-
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
-            <span>Store Rating</span>
-            <TrendingUp className="w-4 h-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-black text-slate-900">★ {store.rating || 5.0}</p>
-          <p className="text-[10px] text-slate-500 mt-1">{store.reviewsCount || 1} resident reviews</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 mb-6 pb-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('orders')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all relative ${
-            activeTab === 'orders' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Incoming Resident Orders
-          {pendingOrders.length > 0 && (
-            <span className="ml-2 bg-white text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
-              {pendingOrders.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('products')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'products' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Manage Product Inventory ({storeProducts.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'settings' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Shop Settings & Offers
-        </button>
-      </div>
-
-      {/* TAB 1: Incoming Orders */}
-      {activeTab === 'orders' && (
-        <div className="space-y-4">
-          {storeOrders.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500">
-              <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="font-bold text-sm text-slate-700">No orders placed yet</p>
-              <p className="text-xs text-slate-500 mt-1">Incoming resident orders will appear here in real-time.</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                <span>Delivered Today</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-2xl font-black text-emerald-700">{deliveredTodayCount} <span className="text-xs font-normal text-slate-500">orders</span></p>
+              <p className="text-[10px] text-emerald-800 font-bold mt-1">₹{deliveredTodayRevenue} earned today</p>
             </div>
-          ) : (
-            storeOrders.map((order) => (
-              <div
-                key={order.id}
-                className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
-              >
+
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                <span>Pending Action</span>
+                <Clock className="w-4 h-4 text-amber-600" />
+              </div>
+              <p className="text-2xl font-black text-amber-600">{pendingOrders.length} <span className="text-xs font-normal text-slate-500">orders</span></p>
+              <p className="text-[10px] text-slate-500 mt-1">Acceptance required</p>
+            </div>
+
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                <span>In Progress</span>
+                <Truck className="w-4 h-4 text-indigo-600" />
+              </div>
+              <p className="text-2xl font-black text-indigo-700">{inProgressOrders.length} <span className="text-xs font-normal text-slate-500">orders</span></p>
+              <p className="text-[10px] text-slate-500 mt-1">Preparing / Out for delivery</p>
+            </div>
+
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-2">
+                <span>Total Lifetime Sales</span>
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-2xl font-black text-slate-900">₹{totalStoreSales.toLocaleString('en-IN')}</p>
+              <p className="text-[10px] text-slate-500 mt-1">{storeOrders.length} total orders received</p>
+            </div>
+          </div>
+
+          {/* Daily Revenue & Total Orders Delivered Performance Chart */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs mb-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <span>Sales & Delivery Performance (Last 7 Days)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Track daily revenue (₹) and delivered orders count</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-bold">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-md bg-emerald-600"></div>
+                  <span className="text-slate-600">Daily Revenue (₹)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-md bg-amber-500"></div>
+                  <span className="text-slate-600">Delivered Orders</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="date" stroke="#64748b" fontSize={11} tickLine={false} />
+                  <YAxis yAxisId="left" stroke="#059669" fontSize={11} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#d97706" fontSize={11} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold' }}
+                    formatter={(value: any, name: string) => [
+                      name === 'revenue' ? `₹${value}` : `${value} orders`,
+                      name === 'revenue' ? 'Daily Revenue' : 'Delivered Orders'
+                    ]}
+                  />
+                  <Bar yAxisId="left" dataKey="revenue" fill="#059669" radius={[6, 6, 0, 0]} barSize={28} name="revenue" />
+                  <Line yAxisId="right" type="monotone" dataKey="ordersCount" stroke="#d97706" strokeWidth={3} dot={{ r: 4, fill: '#d97706' }} name="ordersCount" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex items-center gap-2 border-b border-slate-200 mb-6 pb-2 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all relative ${
+                activeTab === 'orders' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Incoming Resident Orders
+              {pendingOrders.length > 0 && (
+                <span className="ml-2 bg-white text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                  {pendingOrders.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'products' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Manage Product Inventory ({storeProducts.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'settings' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Shop Settings & Offers
+            </button>
+          </div>
+
+          {/* TAB 1: Incoming Orders */}
+          {activeTab === 'orders' && (
+            <div className="space-y-6">
+              {/* Today's Fulfillment Summary Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white rounded-3xl p-5 shadow-sm border border-emerald-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                    <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-black text-white">Today's Order Fulfillment Summary</h3>
+                      <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        Delivered Today
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5 font-medium">
+                      You have delivered <strong className="text-emerald-400 font-black text-sm">{deliveredTodayCount}</strong> order{deliveredTodayCount === 1 ? '' : 's'} today generating <strong className="text-emerald-400 font-black text-sm">₹{deliveredTodayRevenue}</strong> in total revenue today.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs bg-white/10 px-3.5 py-2 rounded-xl font-bold border border-white/10 shrink-0">
+                  <span className="text-slate-300">Total Lifetime Delivered:</span>
+                  <span className="text-amber-300 font-black">{allDeliveredOrders.length} orders</span>
+                </div>
+              </div>
+
+              {/* Search & Filter Controls */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs font-bold">
+                  <button
+                    onClick={() => setOrderFilterTab('all')}
+                    className={`px-3 py-1.5 rounded-xl transition-all shrink-0 ${
+                      orderFilterTab === 'all'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    All ({storeOrders.length})
+                  </button>
+                  <button
+                    onClick={() => setOrderFilterTab('pending')}
+                    className={`px-3 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+                      orderFilterTab === 'pending'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <span>Pending Action</span>
+                    {pendingOrders.length > 0 && (
+                      <span className="bg-amber-800 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                        {pendingOrders.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setOrderFilterTab('in_progress')}
+                    className={`px-3 py-1.5 rounded-xl transition-all shrink-0 ${
+                      orderFilterTab === 'in_progress'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
+                    }`}
+                  >
+                    In Progress ({inProgressOrders.length})
+                  </button>
+                  <button
+                    onClick={() => setOrderFilterTab('delivered_today')}
+                    className={`px-3 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1 ${
+                      orderFilterTab === 'delivered_today'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <span>Delivered Today ({deliveredTodayCount})</span>
+                  </button>
+                  <button
+                    onClick={() => setOrderFilterTab('delivered')}
+                    className={`px-3 py-1.5 rounded-xl transition-all shrink-0 ${
+                      orderFilterTab === 'delivered'
+                        ? 'bg-slate-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    All Delivered ({allDeliveredOrders.length})
+                  </button>
+                </div>
+
+                {/* Search Box */}
+                <div className="relative shrink-0 md:w-64">
+                  <input
+                    type="text"
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    placeholder="Search resident, order #..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  />
+                  {orderSearchQuery && (
+                    <button
+                      onClick={() => setOrderSearchQuery('')}
+                      className="absolute right-2 top-2 text-xs text-slate-400 hover:text-slate-600"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filtered Orders List */}
+              <div className="space-y-4">
+                {filteredStoreOrders.length === 0 ? (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500">
+                    <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                    <p className="font-bold text-sm text-slate-700">No orders match your filter</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {orderSearchQuery ? `No order matched "${orderSearchQuery}"` : 'Try switching filter tabs above.'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredStoreOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6 hover:border-slate-300 transition-colors"
+                    >
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
                     <span className="font-extrabold text-sm text-slate-900 font-mono">#{order.id}</span>
@@ -655,16 +980,18 @@ export const StoreOwnerDashboard: React.FC = () => {
                   {order.status === 'pending' && (
                     <div className="flex flex-wrap items-center gap-2">
                       <button
-                        onClick={() => updateOrderStatus(order.id, 'accepted', 'Accepted by Store Owner')}
-                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all"
+                        disabled={updatingOrderId === order.id}
+                        onClick={() => handleStatusUpdate(order.id, 'accepted', 'Accepted by Store Owner')}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
                       >
-                        Accept Order ✅
+                        {updatingOrderId === order.id ? 'Accepting...' : 'Accept Order ✅'}
                       </button>
                       <button
-                        onClick={() => updateOrderStatus(order.id, 'rejected', 'Declined by Store Owner')}
-                        className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs border border-rose-200 active:scale-95 transition-all"
+                        disabled={updatingOrderId === order.id}
+                        onClick={() => handleStatusUpdate(order.id, 'rejected', 'Declined by Store Owner')}
+                        className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs border border-rose-200 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
                       >
-                        Reject & Refund ❌
+                        {updatingOrderId === order.id ? 'Updating...' : 'Reject & Refund ❌'}
                       </button>
                     </div>
                   )}
@@ -672,26 +999,29 @@ export const StoreOwnerDashboard: React.FC = () => {
                   {(order.status === 'accepted' || order.status === 'preparing') && (
                     <div className="flex flex-wrap items-center gap-2">
                       <button
-                        onClick={() => updateOrderStatus(order.id, 'out_for_delivery', 'Runner heading to flat')}
-                        className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all"
+                        disabled={updatingOrderId === order.id}
+                        onClick={() => handleStatusUpdate(order.id, 'out_for_delivery', 'Runner heading to flat')}
+                        className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
                       >
-                        Out for Delivery 🛵
+                        {updatingOrderId === order.id ? 'Updating...' : 'Out for Delivery 🛵'}
                       </button>
                       <button
-                        onClick={() => updateOrderStatus(order.id, 'delivered', 'Handed over at doorstep')}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all"
+                        disabled={updatingOrderId === order.id}
+                        onClick={() => handleStatusUpdate(order.id, 'delivered', 'Handed over at doorstep')}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
                       >
-                        Mark Delivered 🎉
+                        {updatingOrderId === order.id ? 'Updating...' : 'Mark Delivered 🎉'}
                       </button>
                     </div>
                   )}
 
                   {order.status === 'out_for_delivery' && (
                     <button
-                      onClick={() => updateOrderStatus(order.id, 'delivered', 'Handed over at doorstep')}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md active:scale-95 transition-all"
+                      disabled={updatingOrderId === order.id}
+                      onClick={() => handleStatusUpdate(order.id, 'delivered', 'Handed over at doorstep')}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
                     >
-                      Mark Order Delivered 🎉
+                      {updatingOrderId === order.id ? 'Updating...' : 'Mark Order Delivered 🎉'}
                     </button>
                   )}
 
@@ -711,6 +1041,7 @@ export const StoreOwnerDashboard: React.FC = () => {
             ))
           )}
         </div>
+      </div>
       )}
 
       {/* TAB 2: Products Management */}
@@ -726,7 +1057,9 @@ export const StoreOwnerDashboard: React.FC = () => {
             </button>
           </div>
 
-          {storeProducts.length === 0 ? (
+          {isLoadingProducts ? (
+            <ProductGridSkeleton count={6} />
+          ) : storeProducts.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500">
               <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
               <p className="font-bold text-sm text-slate-700">No products added yet</p>
@@ -789,6 +1122,17 @@ export const StoreOwnerDashboard: React.FC = () => {
                   type="text"
                   value={store.name}
                   onChange={(e) => updateStoreDetails(store.id, { name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-amber-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Store Category / Purpose</label>
+                <input
+                  type="text"
+                  value={store.category || ''}
+                  onChange={(e) => updateStoreDetails(store.id, { category: e.target.value })}
+                  placeholder="e.g. Stationery, Grocery, Pharmacy, Hardware, Electronics..."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-amber-600"
                 />
               </div>

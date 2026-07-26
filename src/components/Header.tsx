@@ -17,6 +17,8 @@ import {
   Sun,
   Moon,
   Smartphone,
+  X,
+  Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -54,6 +56,55 @@ export const Header: React.FC<HeaderProps> = ({
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
   );
+  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem('push_notifications_enabled');
+    if (stored !== null) return stored === 'true';
+    return 'Notification' in window && Notification.permission === 'granted';
+  });
+  const [showPushBanner, setShowPushBanner] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const dismissed = localStorage.getItem('push_banner_dismissed');
+    return dismissed !== 'true';
+  });
+
+  const handleTogglePush = async (enable: boolean) => {
+    if (enable) {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'default') {
+          const res = await Notification.requestPermission();
+          setNotifPermission(res);
+          if (res === 'granted') {
+            setIsPushEnabled(true);
+            localStorage.setItem('push_notifications_enabled', 'true');
+            new Notification("🎉 Push Notifications Enabled!", {
+              body: "You will now get instant live status updates for your society orders!",
+              icon: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80",
+            });
+          } else {
+            alert("Notification permission was denied. Please allow notifications in your browser site settings.");
+            setIsPushEnabled(false);
+            localStorage.setItem('push_notifications_enabled', 'false');
+          }
+        } else if (Notification.permission === 'granted') {
+          setIsPushEnabled(true);
+          localStorage.setItem('push_notifications_enabled', 'true');
+          new Notification("🎉 Push Notifications Active!", {
+            body: "Order update push notifications are enabled.",
+          });
+        } else {
+          alert("Notification permission is blocked by browser settings. Please enable notifications for this site in your address bar.");
+          setIsPushEnabled(false);
+          localStorage.setItem('push_notifications_enabled', 'false');
+        }
+      } else {
+        alert("Push notifications are not supported in your browser.");
+      }
+    } else {
+      setIsPushEnabled(false);
+      localStorage.setItem('push_notifications_enabled', 'false');
+    }
+  };
 
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const unreadNotifs = notifications.filter((n) => !n.isRead && (n.userId === 'all' || n.userId === currentUser?.id));
@@ -76,6 +127,54 @@ export const Header: React.FC<HeaderProps> = ({
           <strong className="font-bold">Manokamna Apartments Society Marketplace:</strong> Guaranteed doorstep delivery within 20 minutes from inside shops!
         </span>
       </div>
+
+      {/* In-App Push Notification Opt-In Banner */}
+      {showPushBanner && (
+        <div className="bg-slate-900 text-white px-3 sm:px-4 py-2 border-b border-slate-800 flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 truncate">
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <Bell className="w-3.5 h-3.5 animate-bounce" />
+            </div>
+            <span className="truncate text-[11px] sm:text-xs">
+              <strong className="text-emerald-400 font-bold">Enable Order Updates Push Notifications:</strong> Get instant delivery alerts on your screen!
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleTogglePush(!isPushEnabled)}
+              className={`px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                isPushEnabled
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'bg-emerald-400 text-slate-950 hover:bg-emerald-300'
+              }`}
+            >
+              {isPushEnabled ? (
+                <>
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  <span>Push Active</span>
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-3 h-3" />
+                  <span>Turn On Push</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                setShowPushBanner(false);
+                localStorage.setItem('push_banner_dismissed', 'true');
+              }}
+              className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              title="Dismiss banner"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-1.5 sm:gap-3">
@@ -198,31 +297,35 @@ export const Header: React.FC<HeaderProps> = ({
                         <span className="text-xs text-slate-500 font-medium">{notifications.length} total</span>
                       </div>
 
-                      {typeof window !== 'undefined' && 'Notification' in window && notifPermission === 'default' && (
-                        <div className="my-2 p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex flex-col gap-1.5 items-start text-xs text-emerald-800">
-                          <p className="font-bold flex items-center gap-1.5 text-slate-900">
-                            <Smartphone className="w-4 h-4 text-emerald-600 animate-bounce" /> Enable Blinkit-style Alerts?
+                      {/* Push Notification Opt-in Toggle inside Popover */}
+                      <div className="my-2.5 p-3 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl flex items-center justify-between gap-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                            <Smartphone className="w-3.5 h-3.5 text-emerald-400" /> Order Updates Push Alerts
                           </p>
-                          <p className="text-[10px] text-emerald-700/90 font-medium leading-relaxed">
-                            Get instant status updates for order accepted, out-for-delivery, and delivered on your screen!
+                          <p className="text-[10px] text-slate-300 leading-tight">
+                            {isPushEnabled
+                              ? 'Live order status push notifications are active.'
+                              : 'Enable push alerts for instant doorstep updates.'}
                           </p>
-                          <button
-                            onClick={async () => {
-                              const res = await Notification.requestPermission();
-                              setNotifPermission(res);
-                              if (res === 'granted') {
-                                new Notification("🎉 Push Notifications Enabled!", {
-                                  body: "You will now get instant Blinkit-style notifications for your orders!",
-                                  icon: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80",
-                                });
-                              }
-                            }}
-                            className="w-full text-center px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-colors text-[10px] shadow-sm shadow-emerald-600/10 cursor-pointer"
-                          >
-                            Turn On Notifications
-                          </button>
                         </div>
-                      )}
+
+                        <button
+                          onClick={() => handleTogglePush(!isPushEnabled)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isPushEnabled ? 'bg-emerald-500' : 'bg-slate-600'
+                          }`}
+                          role="switch"
+                          aria-checked={isPushEnabled}
+                          title="Toggle Push Notifications"
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              isPushEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
 
                       <div className="max-h-80 overflow-y-auto space-y-2 mt-3 pr-1">
                         {notifications.length === 0 ? (
@@ -255,8 +358,8 @@ export const Header: React.FC<HeaderProps> = ({
               </AnimatePresence>
             </div>
 
-            {/* Shopping Cart Drawer Trigger */}
-            {currentRole !== 'admin' && (
+            {/* Shopping Cart Drawer Trigger (Only for Customers / Guests) */}
+            {currentRole !== 'admin' && currentRole !== 'store_owner' && (
               <button
                 onClick={() => setIsCartDrawerOpen(true)}
                 className="relative p-2 sm:px-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all active:scale-95 flex items-center gap-1 sm:gap-1.5 shrink-0"
@@ -279,12 +382,12 @@ export const Header: React.FC<HeaderProps> = ({
                   className="flex items-center gap-2 p-1 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 transition-colors shrink-0"
                 >
                   <img
-                    src={currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80'}
-                    alt={currentUser.fullName}
+                    src={currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80'}
+                    alt={currentUser?.fullName || 'User'}
                     className="w-7 h-7 rounded-lg object-cover ring-2 ring-emerald-500/40"
                   />
                   <span className="hidden md:inline text-xs font-semibold text-slate-800 truncate max-w-[100px]">
-                    {currentUser.fullName.split(' ')[0]}
+                    {(currentUser?.fullName || currentUser?.email || 'User').split(' ')[0]}
                   </span>
                 </button>
 
@@ -299,9 +402,11 @@ export const Header: React.FC<HeaderProps> = ({
                         className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 text-slate-800"
                       >
                         <div className="p-3 border-b border-slate-100">
-                          <p className="font-bold text-sm text-slate-900">{currentUser.fullName}</p>
-                          <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
-                          <p className="text-[11px] text-emerald-700 font-medium mt-1">{currentUser.address}</p>
+                          <p className="font-bold text-sm text-slate-900">{currentUser?.fullName || currentUser?.email || 'User'}</p>
+                          <p className="text-xs text-slate-500 truncate">{currentUser?.email || ''}</p>
+                          {currentUser?.address && (
+                            <p className="text-[11px] text-emerald-700 font-medium mt-1">{currentUser.address}</p>
+                          )}
                         </div>
                         <div className="py-1 space-y-0.5">
                           {currentRole !== 'admin' && (

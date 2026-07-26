@@ -10,7 +10,7 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, store }) => {
-  const { cart, addToCart, updateCartQuantity, stores } = useMarketplace();
+  const { cart, addToCart, updateCartQuantity, clearCart, stores } = useMarketplace();
   const [addedNotice, setAddedNotice] = useState(false);
 
   const productStore = store || stores.find((s) => s.id === product.storeId);
@@ -25,7 +25,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, store }) => {
   const handleAdd = () => {
     const res = addToCart(product, 1);
     if (!res.success) {
-      alert(res.message);
+      if (res.message.includes('Your cart contains items from')) {
+        if (window.confirm(`${res.message}\n\nWould you like to clear your current cart and start an order from this shop?`)) {
+          clearCart();
+          addToCart(product, 1);
+          setAddedNotice(true);
+          setTimeout(() => setAddedNotice(false), 1500);
+        }
+      } else {
+        alert(res.message);
+      }
     } else {
       setAddedNotice(true);
       setTimeout(() => setAddedNotice(false), 1500);

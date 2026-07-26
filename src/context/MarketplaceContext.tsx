@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, doc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import {
   User,
   UserRole,
@@ -44,6 +44,11 @@ interface MarketplaceContextType {
   selectedStoreId: string | null;
   isAdminTester: boolean;
   
+  // Loading States for Skeletons
+  isLoadingStores: boolean;
+  isLoadingProducts: boolean;
+  isInitialLoading: boolean;
+  
   // Navigation / Modal States
   isAuthModalOpen: boolean;
   authModalTab: 'login' | 'signup' | 'store_owner' | 'admin';
@@ -77,6 +82,7 @@ interface MarketplaceContextType {
     storeName: string;
     storeCategory: string;
     blockLocation: string;
+    categories?: string[];
   }) => { success: boolean; message: string };
   logout: () => void;
   switchRoleQuick: (role: UserRole, storeId?: string) => void;
@@ -114,6 +120,7 @@ interface MarketplaceContextType {
     minOrderAmount?: number;
     deliveryTimeMinutes?: number;
     image?: string;
+    categories?: string[];
   }) => { success: boolean; message: string };
   loadDemoStores: () => void;
   clearAllStores: () => void;
@@ -258,6 +265,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [isStateLoadedFromCloud, setIsStateLoadedFromCloud] = useState(false);
+  const [isLoadingStores, setIsLoadingStores] = useState(true);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
   // Firestore Realtime Sync across devices
   useEffect(() => {
@@ -299,10 +308,18 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       snapshot.forEach((docSnap) => {
         list.push({ id: docSnap.id, ...docSnap.data() } as Store);
       });
-      setStores(list);
+      if (snapshot.empty) {
+        INITIAL_STORES.forEach((s) => {
+          setDoc(doc(db, 'stores', s.id), s);
+        });
+      } else {
+        setStores(list);
+      }
+      setIsLoadingStores(false);
       checkLoaded();
     }, (err) => {
       console.error("Firestore stores sync error:", err);
+      setIsLoadingStores(false);
       checkLoaded();
     });
 
@@ -312,10 +329,18 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       snapshot.forEach((docSnap) => {
         list.push({ id: docSnap.id, ...docSnap.data() } as Product);
       });
-      setProducts(list);
+      if (snapshot.empty) {
+        INITIAL_PRODUCTS.forEach((p) => {
+          setDoc(doc(db, 'products', p.id), p);
+        });
+      } else {
+        setProducts(list);
+      }
+      setIsLoadingProducts(false);
       checkLoaded();
     }, (err) => {
       console.error("Firestore products sync error:", err);
+      setIsLoadingProducts(false);
       checkLoaded();
     });
 
@@ -399,6 +424,39 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       unsubscribeReviews();
     };
   }, []);
+
+  // Sync local currentUser with Firestore users array whenever cloud users update
+  useEffect(() => {
+    if (users.length > 0) {
+      if (currentUser) {
+        const cloudUser = users.find(
+          (u) => u.id === currentUser.id || (u.email && u.email.toLowerCase() === currentUser.email.toLowerCase())
+        );
+        if (cloudUser && JSON.stringify(cloudUser) !== JSON.stringify(currentUser)) {
+          setCurrentUser(cloudUser);
+        }
+      } else {
+        const savedRaw = localStorage.getItem('sm_current_user');
+        if (savedRaw) {
+          try {
+            const savedObj = JSON.parse(savedRaw);
+            if (savedObj && savedObj.id) {
+              const matchedCloudUser = users.find(
+                (u) => u.id === savedObj.id || (u.email && u.email.toLowerCase() === savedObj.email.toLowerCase())
+              );
+              if (matchedCloudUser) {
+                setCurrentUser(matchedCloudUser);
+              } else {
+                setCurrentUser(savedObj);
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing saved user:", e);
+          }
+        }
+      }
+    }
+  }, [users]);
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -489,11 +547,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const login = (email: string, pass: string, targetRole?: UserRole) => {
-    const formattedEmail = (email || '').trim().toLowerCase();
+    const cleanInput = (email || '').trim().toLowerCase();
+    const cleanDigits = cleanInput.replace(/\D/g, '');
 
     // STRICT Admin check for satyam443355@gmail.com
-    if (targetRole === 'admin' || formattedEmail === 'satyam443355@gmail.com') {
-      if (formattedEmail !== 'satyam443355@gmail.com' || pass !== 'Satyam@123') {
+    if (targetRole === 'admin' || cleanInput === 'satyam443355@gmail.com') {
+      if (cleanInput !== 'satyam443355@gmail.com' || pass !== 'Satyam@123') {
         return {
           success: false,
           message: 'Invalid login credentials.',
@@ -524,10 +583,21 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return { success: true, message: 'Welcome back, Satyam (Society Admin)!' };
     }
 
-    const foundUser = users.find((u) => (u.email || '').toLowerCase() === formattedEmail);
+    const foundUser = users.find((u) => {
+      const uEmail = (u.email || '').trim().toLowerCase();
+      const uMobileDigits = (u.mobile || '').replace(/\D/g, '');
+      const uStore = stores.find((s) => s.ownerId === u.id || s.id === u.storeId);
+      const uStoreName = (uStore?.name || '').trim().toLowerCase();
+
+      const matchEmail = uEmail === cleanInput;
+      const matchMobile = cleanDigits.length >= 7 && uMobileDigits.includes(cleanDigits);
+      const matchStoreName = uStoreName && cleanInput.length >= 3 && uStoreName.includes(cleanInput);
+
+      return matchEmail || matchMobile || matchStoreName;
+    });
 
     if (!foundUser) {
-      return { success: false, message: 'No account found with this email. Please Sign Up.' };
+      return { success: false, message: 'No account found matching this Email, Mobile Number, or Store Name. Please Sign Up.' };
     }
 
     if (foundUser.isBanned) {
@@ -571,6 +641,279 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return { success: true, message: 'Account created successfully! Welcome to Society Marketplace.' };
   };
 
+  const createStarterProductsForStore = (
+    storeId: string,
+    storeName: string,
+    category: string
+  ): Product[] => {
+    const lowerCat = (category || '').toLowerCase();
+    const now = Date.now();
+
+    if (lowerCat.includes('grocery') || lowerCat.includes('essentials') || lowerCat.includes('supermarket')) {
+      return [
+        {
+          id: `prod_${now}_1`,
+          storeId,
+          name: 'Fresh Toned Cow Milk',
+          category: 'Dairy & Milk',
+          price: 66,
+          originalPrice: 70,
+          stock: 50,
+          unit: '1 Litre',
+          description: 'Pure, pasteurized fresh toned milk delivered daily.',
+          image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_2`,
+          storeId,
+          name: 'Whole Wheat Whole-grain Bread',
+          category: 'Bakery',
+          price: 45,
+          originalPrice: 50,
+          stock: 30,
+          unit: '400 g',
+          description: 'Freshly baked soft whole wheat brown bread loaf.',
+          image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_3`,
+          storeId,
+          name: 'Farm Fresh Organic Eggs',
+          category: 'Dairy & Eggs',
+          price: 90,
+          originalPrice: 100,
+          stock: 40,
+          unit: '12 pcs',
+          description: 'Nutritious farm fresh brown eggs packed with protein.',
+          image: 'https://images.unsplash.com/photo-1516448620398-c5f44bf9f441?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_4`,
+          storeId,
+          name: 'Refined Sunflower Cooking Oil',
+          category: 'Cooking Essentials',
+          price: 155,
+          originalPrice: 175,
+          stock: 25,
+          unit: '1 Litre Pouch',
+          description: 'Light and healthy refined sunflower oil for daily cooking.',
+          image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+      ];
+    }
+
+    if (lowerCat.includes('bakery') || lowerCat.includes('cake') || lowerCat.includes('sweet')) {
+      return [
+        {
+          id: `prod_${now}_1`,
+          storeId,
+          name: 'Classic Butter Croissants',
+          category: 'Pastries & Breads',
+          price: 120,
+          originalPrice: 140,
+          stock: 20,
+          unit: 'Pack of 2',
+          description: 'Flaky, buttery gold-baked French croissants.',
+          image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_2`,
+          storeId,
+          name: 'Rich Dark Chocolate Brownie',
+          category: 'Desserts',
+          price: 85,
+          originalPrice: 100,
+          stock: 25,
+          unit: '1 Slice',
+          description: 'Dense fudgy chocolate brownie topped with walnuts.',
+          image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_3`,
+          storeId,
+          name: 'Fresh Fruit Cream Sponge Cake',
+          category: 'Cakes',
+          price: 490,
+          originalPrice: 550,
+          stock: 10,
+          unit: '500 g',
+          description: 'Soft vanilla sponge layered with fresh seasonal fruits and cream.',
+          image: 'https://images.unsplash.com/photo-1535141192574-5d4897c13136?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+      ];
+    }
+
+    if (lowerCat.includes('stationery') || lowerCat.includes('book') || lowerCat.includes('office')) {
+      return [
+        {
+          id: `prod_${now}_1`,
+          storeId,
+          name: 'A4 Printing & Xeroxing Paper',
+          category: 'Office Supplies',
+          price: 290,
+          originalPrice: 320,
+          stock: 30,
+          unit: '500 Sheets Ream',
+          description: '75 GSM bright white paper ream for home and office printing.',
+          image: 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_2`,
+          storeId,
+          name: 'Smooth Gel Pen Set',
+          category: 'Pens & Markers',
+          price: 80,
+          originalPrice: 100,
+          stock: 50,
+          unit: 'Pack of 5 (Blue)',
+          description: 'Waterproof quick-dry gel ink pens for comfortable writing.',
+          image: 'https://images.unsplash.com/photo-1585336261026-8f5786372960?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_3`,
+          storeId,
+          name: 'Executive Hardbound Diary',
+          category: 'Notebooks',
+          price: 180,
+          originalPrice: 220,
+          stock: 20,
+          unit: '1 Notebook (200 Pages)',
+          description: 'Premium ruled paper notebook with leatherette hard cover.',
+          image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+      ];
+    }
+
+    if (lowerCat.includes('pharmacy') || lowerCat.includes('medicine') || lowerCat.includes('health')) {
+      return [
+        {
+          id: `prod_${now}_1`,
+          storeId,
+          name: 'Paracetamol 650mg Relief Tablets',
+          category: 'OTC Medicines',
+          price: 32,
+          originalPrice: 35,
+          stock: 100,
+          unit: 'Strip of 15 Tablets',
+          description: 'Fast acting fever and body pain relief tablets.',
+          image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_2`,
+          storeId,
+          name: 'Antiseptic Liquid Disinfectant',
+          category: 'First Aid',
+          price: 75,
+          originalPrice: 85,
+          stock: 40,
+          unit: '100 ml Bottle',
+          description: 'First aid antiseptic for cuts, grazes, and personal hygiene.',
+          image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+        {
+          id: `prod_${now}_3`,
+          storeId,
+          name: 'Vitamin C + Zinc Immunity Chewables',
+          category: 'Supplements',
+          price: 110,
+          originalPrice: 130,
+          stock: 35,
+          unit: 'Strip of 15',
+          description: 'Daily immunity booster chewable orange tablets.',
+          image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=600&q=80',
+          isAvailable: true,
+          rating: 5.0,
+          reviewsCount: 1,
+        },
+      ];
+    }
+
+    // Generic fallback catalog
+    return [
+      {
+        id: `prod_${now}_1`,
+        storeId,
+        name: `${storeName} Essential Item 1`,
+        category: category || 'General',
+        price: 120,
+        originalPrice: 150,
+        stock: 50,
+        unit: '1 unit',
+        description: 'High quality essential product freshly stocked at our society store.',
+        image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
+        isAvailable: true,
+        rating: 5.0,
+        reviewsCount: 1,
+      },
+      {
+        id: `prod_${now}_2`,
+        storeId,
+        name: `${storeName} Daily Pack 2`,
+        category: category || 'General',
+        price: 85,
+        originalPrice: 100,
+        stock: 35,
+        unit: '1 pack',
+        description: 'Popular daily staple item available for instant doorstep delivery.',
+        image: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=600&q=80',
+        isAvailable: true,
+        rating: 5.0,
+        reviewsCount: 1,
+      },
+      {
+        id: `prod_${now}_3`,
+        storeId,
+        name: `${storeName} Value Set`,
+        category: category || 'General',
+        price: 199,
+        originalPrice: 250,
+        stock: 25,
+        unit: '1 set',
+        description: 'Special value pack curated for society residents.',
+        image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=600&q=80',
+        isAvailable: true,
+        rating: 5.0,
+        reviewsCount: 1,
+      },
+    ];
+  };
+
   const signupStoreOwner = (ownerData: {
     fullName: string;
     email: string;
@@ -579,6 +922,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     storeName: string;
     storeCategory: string;
     blockLocation: string;
+    categories?: string[];
   }) => {
     const formattedEmail = (ownerData?.email || '').trim().toLowerCase();
     const existing = users.find((u) => (u.email || '').toLowerCase() === formattedEmail);
@@ -589,6 +933,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const storeId = 'store_' + Date.now();
     const userId = 'user_' + Date.now();
 
+    const catList = ownerData.categories && ownerData.categories.length > 0
+      ? ownerData.categories
+      : ownerData.storeCategory
+        ? ownerData.storeCategory.split(',').map((c) => c.trim()).filter(Boolean)
+        : ['General'];
+
     const newUser: User = {
       id: userId,
       fullName: ownerData.fullName.trim(),
@@ -597,7 +947,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       address: ownerData.blockLocation.trim(),
       role: 'store_owner',
       storeId,
-      isApproved: false,
+      isApproved: true,
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(ownerData.fullName)}`,
       createdAt: new Date().toISOString(),
     };
@@ -605,7 +955,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const newStore: Store = {
       id: storeId,
       name: ownerData.storeName.trim(),
-      category: ownerData.storeCategory,
+      category: ownerData.storeCategory.trim(),
+      categories: catList,
       ownerId: userId,
       ownerName: ownerData.fullName.trim(),
       ownerPhone: ownerData.mobile.trim(),
@@ -616,24 +967,50 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isOpen: true,
       openingTime: '08:00 AM',
       closingTime: '10:00 PM',
-      status: 'pending',
+      status: 'active',
       deliveryTimeMinutes: 15,
       minOrderAmount: 50,
       totalSales: 0,
     };
 
-    setDoc(doc(db, 'users', newUser.id), newUser);
-    setDoc(doc(db, 'stores', newStore.id), newStore);
+    // 1. Optimistically update local React state
     setCurrentUser(newUser);
     setCurrentRole('store_owner');
+    setUsers((prev) => [...prev.filter((u) => u.id !== userId), newUser]);
+    setStores((prev) => [...prev.filter((s) => s.id !== storeId), newStore]);
     setIsAuthModalOpen(false);
+
+    // 2. Persist User & Store to Firestore in real-time
+    setDoc(doc(db, 'users', newUser.id), newUser);
+    setDoc(doc(db, 'stores', newStore.id), newStore);
+
+    // 3. Generate & Persist Default Product Catalog for this new store in real-time
+    const initialProducts = createStarterProductsForStore(newStore.id, newStore.name, newStore.category);
+    initialProducts.forEach((prod) => {
+      setDoc(doc(db, 'products', prod.id), prod);
+    });
+    setProducts((prev) => [...prev.filter((p) => !initialProducts.some((ip) => ip.id === p.id)), ...initialProducts]);
+
+    // 4. Data-fetching listener verification: fetch created store from Firestore server immediately
+    getDocFromServer(doc(db, 'stores', newStore.id))
+      .then((docSnap) => {
+        if (docSnap.exists()) {
+          const cloudStore = { id: docSnap.id, ...docSnap.data() } as Store;
+          setStores((prev) => [...prev.filter((s) => s.id !== cloudStore.id), cloudStore]);
+          console.log(`✅ Store "${cloudStore.name}" verified and persisted in Firestore!`);
+        }
+      })
+      .catch((err) => console.warn('Direct store fetch verification note:', err));
+
+    // Save to LocalStorage
+    localStorage.setItem('sm_current_user', JSON.stringify(newUser));
 
     // Notify Admin (satyam443355@gmail.com)
     const notif: AppNotification = {
       id: 'notif_store_pending_' + Date.now(),
       userId: 'user_admin',
-      title: 'New Store Approval Request 🏪',
-      message: `Store "${newStore.name}" registered by ${newUser.fullName} is awaiting your Admin approval.`,
+      title: 'New Store Registered 🏪',
+      message: `Store "${newStore.name}" (${newStore.category}) registered by ${newUser.fullName} is now LIVE on Society Marketplace.`,
       timestamp: new Date().toISOString(),
       isRead: false,
       type: 'announcement',
@@ -642,7 +1019,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     return {
       success: true,
-      message: `Account created! Store "${newStore.name}" submitted to Society Admin (satyam443355@gmail.com) for approval.`,
+      message: `Account and store created! "${newStore.name}" product catalog initialized and ready.`,
     };
   };
 
@@ -1125,7 +1502,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const targetOrder = orders.find((o) => o.id === orderId);
     if (!targetOrder) return;
 
-    const updatedHistory = [...targetOrder.statusHistory, { status, timestamp, note }];
+    const updatedHistory = [...(targetOrder.statusHistory || []), { status, timestamp, note }];
     let newPaymentStatus = targetOrder.paymentStatus;
 
     if (status === 'delivered') {
@@ -1142,7 +1519,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       statusHistory: updatedHistory,
     };
 
-    // Update order in Firestore
+    // 1. Optimistically update local React state IMMEDIATELY for single-click instant feedback
+    setOrders((prevOrders) =>
+      prevOrders.map((o) => (o.id === orderId ? { ...o, ...updatedOrderFields } : o))
+    );
+
+    // 2. Persist to cloud Firestore so customer and store owner see real-time status updates across devices
     setDoc(doc(db, 'orders', orderId), updatedOrderFields, { merge: true });
 
     // Send order status update email to customer
@@ -1312,16 +1694,24 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     minOrderAmount?: number;
     deliveryTimeMinutes?: number;
     image?: string;
+    categories?: string[];
   }) => {
     if (!currentUser) {
       return { success: false, message: 'You must be logged in to register a store.' };
     }
 
     const newStoreId = 'store_' + Date.now();
+    const catList = storeDetails.categories && storeDetails.categories.length > 0
+      ? storeDetails.categories
+      : storeDetails.category
+        ? storeDetails.category.split(',').map((c) => c.trim()).filter(Boolean)
+        : ['General'];
+
     const newStore: Store = {
       id: newStoreId,
       name: storeDetails.name.trim(),
-      category: storeDetails.category,
+      category: storeDetails.category.trim(),
+      categories: catList,
       ownerId: currentUser.id,
       ownerName: currentUser.fullName,
       ownerPhone: storeDetails.ownerPhone.trim() || currentUser.mobile,
@@ -1334,7 +1724,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isOpen: true,
       openingTime: storeDetails.openingTime || '08:00 AM',
       closingTime: storeDetails.closingTime || '10:00 PM',
-      status: 'pending', // Pending approval by Admin (Satyam)
+      status: 'active', // Active immediately on cloud Firestore
       deliveryTimeMinutes: storeDetails.deliveryTimeMinutes || 15,
       minOrderAmount: storeDetails.minOrderAmount || 50,
       totalSales: 0,
@@ -1344,20 +1734,46 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       ...currentUser,
       role: 'store_owner',
       storeId: newStoreId,
-      isApproved: false, // Requires admin approval
+      isApproved: true,
     };
+
+    // 1. Optimistically update local state immediately
     setCurrentUser(updatedUser);
     setCurrentRole('store_owner');
+    setUsers((prev) => [...prev.filter((u) => u.id !== currentUser.id), updatedUser]);
+    setStores((prev) => [...prev.filter((s) => s.id !== newStoreId), newStore]);
 
+    // 2. Persist Store & User to Firestore in real-time
     setDoc(doc(db, 'stores', newStore.id), newStore);
     setDoc(doc(db, 'users', currentUser.id), updatedUser);
+
+    // 3. Generate & Persist Default Product Catalog for this new store in real-time
+    const initialProducts = createStarterProductsForStore(newStore.id, newStore.name, newStore.category);
+    initialProducts.forEach((prod) => {
+      setDoc(doc(db, 'products', prod.id), prod);
+    });
+    setProducts((prev) => [...prev.filter((p) => !initialProducts.some((ip) => ip.id === p.id)), ...initialProducts]);
+
+    // 4. Data-fetching listener verification: fetch created store from Firestore server immediately
+    getDocFromServer(doc(db, 'stores', newStore.id))
+      .then((docSnap) => {
+        if (docSnap.exists()) {
+          const cloudStore = { id: docSnap.id, ...docSnap.data() } as Store;
+          setStores((prev) => [...prev.filter((s) => s.id !== cloudStore.id), cloudStore]);
+          console.log(`✅ Store "${cloudStore.name}" verified and persisted in Firestore!`);
+        }
+      })
+      .catch((err) => console.warn('Direct store fetch verification note:', err));
+
+    // Save to LocalStorage
+    localStorage.setItem('sm_current_user', JSON.stringify(updatedUser));
 
     // Notify Admin (satyam443355@gmail.com)
     const notif: AppNotification = {
       id: 'notif_store_pending_' + Date.now(),
       userId: 'user_admin',
-      title: 'New Store Approval Request 🏪',
-      message: `Store "${newStore.name}" registered by ${currentUser.fullName} is awaiting your Admin approval.`,
+      title: 'New Store Registered 🏪',
+      message: `Store "${newStore.name}" (${newStore.category}) registered by ${currentUser.fullName} is now LIVE on Society Marketplace.`,
       timestamp: new Date().toISOString(),
       isRead: false,
       type: 'announcement',
@@ -1366,7 +1782,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     return {
       success: true,
-      message: `Store "${newStore.name}" registered! Approval request sent to Society Admin (satyam443355@gmail.com).`,
+      message: `Store "${newStore.name}" registered! Product catalog initialized and active.`,
     };
   };
 
@@ -1397,39 +1813,82 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       rating: 5.0,
       reviewsCount: 1,
     };
-    setDoc(doc(db, 'products', id), newProd);
+    setProducts((prev) => [...prev.filter((p) => p.id !== id), newProd]);
+    setDoc(doc(db, 'products', id), newProd).catch((err) =>
+      console.error('Error adding product to Firestore:', err)
+    );
   };
 
   const editProduct = (productId: string, data: Partial<Product>) => {
-    setDoc(doc(db, 'products', productId), data, { merge: true });
+    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, ...data } : p)));
+    setDoc(doc(db, 'products', productId), data, { merge: true }).catch((err) =>
+      console.error(`Error editing product ${productId} in Firestore:`, err)
+    );
   };
 
   const deleteProduct = (productId: string) => {
-    deleteDoc(doc(db, 'products', productId));
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    deleteDoc(doc(db, 'products', productId)).catch((err) =>
+      console.error(`Error deleting product ${productId} from Firestore:`, err)
+    );
   };
 
   const toggleProductStock = (productId: string) => {
     const p = products.find((prod) => prod.id === productId);
     if (p) {
-      setDoc(doc(db, 'products', productId), { isAvailable: !p.isAvailable }, { merge: true });
+      const updated = { isAvailable: !p.isAvailable };
+      setProducts((prev) => prev.map((prod) => (prod.id === productId ? { ...prod, ...updated } : prod)));
+      setDoc(doc(db, 'products', productId), updated, { merge: true }).catch((err) =>
+        console.error(`Error toggling product stock for ${productId}:`, err)
+      );
     }
   };
 
   const updateStoreDetails = (storeId: string, data: Partial<Store>) => {
-    setDoc(doc(db, 'stores', storeId), data, { merge: true });
+    setStores((prevStores) =>
+      prevStores.map((s) => (s.id === storeId ? { ...s, ...data } : s))
+    );
+    setDoc(doc(db, 'stores', storeId), data, { merge: true }).catch((err) =>
+      console.error(`Error updating store ${storeId} in Firestore:`, err)
+    );
   };
 
   // Admin CRUD
   const addStore = (storeData: Omit<Store, 'id' | 'rating' | 'reviewsCount' | 'totalSales'>) => {
     const id = 'store_' + Date.now();
+    const catList = storeData.categories && storeData.categories.length > 0
+      ? storeData.categories
+      : storeData.category
+        ? storeData.category.split(',').map((c) => c.trim()).filter(Boolean)
+        : ['General'];
+
     const newStore: Store = {
       ...storeData,
       id,
+      categories: catList,
       rating: 5.0,
       reviewsCount: 0,
       totalSales: 0,
     };
+
+    setStores((prev) => [...prev.filter((s) => s.id !== id), newStore]);
     setDoc(doc(db, 'stores', id), newStore);
+
+    // Initial products catalog for admin created store
+    const initialProducts = createStarterProductsForStore(newStore.id, newStore.name, newStore.category);
+    initialProducts.forEach((prod) => {
+      setDoc(doc(db, 'products', prod.id), prod);
+    });
+    setProducts((prev) => [...prev.filter((p) => !initialProducts.some((ip) => ip.id === p.id)), ...initialProducts]);
+
+    getDocFromServer(doc(db, 'stores', id))
+      .then((docSnap) => {
+        if (docSnap.exists()) {
+          const cloudStore = { id: docSnap.id, ...docSnap.data() } as Store;
+          setStores((prev) => [...prev.filter((s) => s.id !== cloudStore.id), cloudStore]);
+        }
+      })
+      .catch((err) => console.warn('Admin store verification note:', err));
   };
 
   const toggleStoreStatus = (storeId: string, status: 'active' | 'suspended') => {
@@ -1635,6 +2094,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         selectedCategory,
         selectedStoreId,
         isAdminTester,
+        isLoadingStores,
+        isLoadingProducts,
+        isInitialLoading: isLoadingStores || isLoadingProducts,
         isAuthModalOpen,
         authModalTab,
         isCartDrawerOpen,

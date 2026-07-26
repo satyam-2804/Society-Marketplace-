@@ -17,6 +17,8 @@ import { BottomNav } from './components/BottomNav';
 import { CustomerDashboard } from './components/customer/CustomerDashboard';
 import { StoreOwnerDashboard } from './components/storeOwner/StoreOwnerDashboard';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { StoreGridSkeleton } from './components/skeletons/StoreCardSkeleton';
+import { ProductGridSkeleton } from './components/skeletons/ProductCardSkeleton';
 import {
   Building2,
   Store as StoreIcon,
@@ -33,6 +35,7 @@ import {
   MessageSquare,
   X,
   Camera,
+  ArrowRight,
 } from 'lucide-react';
 
 function MarketplaceApp() {
@@ -49,6 +52,13 @@ function MarketplaceApp() {
     currentUser,
     openAuthModal,
     updateStoreDetails,
+    isLoadingStores,
+    isLoadingProducts,
+    cart,
+    isCartDrawerOpen,
+    setIsCartDrawerOpen,
+    isCheckoutOpen,
+    getCartTotal,
   } = useMarketplace();
 
   // Mode: 'landing' (Initial brief homepage) or 'app' (Main interactive marketplace)
@@ -97,16 +107,26 @@ function MarketplaceApp() {
     setRecentSearches([]);
   };
 
-  // If user logs in as store owner or admin, auto switch to dashboard
+  const prevRoleRef = React.useRef<string | null>(null);
+  const prevUserRef = React.useRef<string | null>(null);
+
+  // If user logs in or switches role to store owner or admin, auto switch to dashboard ONCE
   useEffect(() => {
-    if (currentUser) {
-      if (currentRole === 'store_owner' || currentRole === 'admin') {
+    const currentUserId = currentUser?.id || null;
+    const roleChanged = prevRoleRef.current !== null && prevRoleRef.current !== currentRole;
+    const userJustLoggedIn = prevUserRef.current === null && currentUserId !== null;
+
+    if (roleChanged || userJustLoggedIn) {
+      if (currentUser && (currentRole === 'store_owner' || currentRole === 'admin')) {
         setViewMode('app');
         setActiveView('dashboard');
       }
-    } else {
+    } else if (!currentUser && prevUserRef.current !== null) {
       setActiveView('home');
     }
+
+    prevRoleRef.current = currentRole;
+    prevUserRef.current = currentUserId;
   }, [currentUser, currentRole]);
 
   // Restrict Admin and Store Owner from accessing customer personal views (orders and profile)
@@ -207,7 +227,9 @@ function MarketplaceApp() {
                   </div>
 
                   {/* Stores Grid */}
-                  {stores.length === 0 ? (
+                  {isLoadingStores ? (
+                    <StoreGridSkeleton count={4} />
+                  ) : stores.length === 0 ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 shadow-xs">
                       <StoreIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                       <p className="font-bold text-sm text-slate-800">No stores registered yet</p>
@@ -477,11 +499,13 @@ function MarketplaceApp() {
                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                         <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
                           <ShoppingBag className="w-5 h-5 text-emerald-600" />
-                          <span>Products Available ({filteredProducts.length})</span>
+                          <span>Products Available ({isLoadingProducts ? '...' : filteredProducts.length})</span>
                         </h3>
                       </div>
 
-                      {filteredProducts.length === 0 ? (
+                      {isLoadingProducts ? (
+                        <ProductGridSkeleton count={10} />
+                      ) : filteredProducts.length === 0 ? (
                         <div className="py-16 text-center bg-white border border-slate-200 rounded-3xl space-y-3 p-8 shadow-xs">
                           <Search className="w-10 h-10 text-slate-300 mx-auto" />
                           <h4 className="text-base sm:text-lg font-black text-slate-900">
@@ -562,7 +586,9 @@ function MarketplaceApp() {
               </p>
             </div>
 
-            {stores.length === 0 ? (
+            {isLoadingStores ? (
+              <StoreGridSkeleton count={6} />
+            ) : stores.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-xs">
                 <StoreIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                 <p className="font-bold text-sm text-slate-800">No stores registered yet</p>
@@ -688,6 +714,27 @@ function MarketplaceApp() {
       <OrderTrackingModal />
       <DeliveryReceiptEmailModal />
       <AuthModal />
+
+      {/* Floating Bottom Cart Bar */}
+      {cart.length > 0 && !isCartDrawerOpen && !isCheckoutOpen && (
+        <div className="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-6 z-40">
+          <button
+            onClick={() => setIsCartDrawerOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400/40 flex items-center gap-3 text-xs transition-all hover:scale-105"
+          >
+            <div className="flex items-center gap-2">
+              <span className="bg-emerald-800/90 px-2.5 py-1 rounded-xl text-[11px] font-black">
+                {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'Item' : 'Items'}
+              </span>
+              <span className="font-black text-sm">₹{getCartTotal()}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-white font-black border-l border-emerald-500/80 pl-3">
+              <span>View Cart & Checkout</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Mobile Bottom Navigation */}
       <BottomNav activeView={activeView} setActiveView={setActiveView} />

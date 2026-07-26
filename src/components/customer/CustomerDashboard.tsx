@@ -16,6 +16,9 @@ import {
   ShieldCheck,
   Building2,
   ArrowRight,
+  Bell,
+  Smartphone,
+  Check,
 } from 'lucide-react';
 
 interface CustomerDashboardProps {
@@ -45,6 +48,49 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [newMobile, setNewMobile] = useState(currentUser?.mobile || '');
   const [newName, setNewName] = useState(currentUser?.fullName || '');
   const [avatarSuccessMsg, setAvatarSuccessMsg] = useState<string | null>(null);
+
+  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem('push_notifications_enabled');
+    if (stored !== null) return stored === 'true';
+    return 'Notification' in window && Notification.permission === 'granted';
+  });
+
+  const handleTogglePush = async (enable: boolean) => {
+    if (enable) {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'default') {
+          const res = await Notification.requestPermission();
+          if (res === 'granted') {
+            setIsPushEnabled(true);
+            localStorage.setItem('push_notifications_enabled', 'true');
+            new Notification("🎉 Push Notifications Enabled!", {
+              body: "You will now receive instant live order status alerts on your screen!",
+            });
+          } else {
+            alert("Notification permission was denied. Please allow notifications in site settings.");
+            setIsPushEnabled(false);
+            localStorage.setItem('push_notifications_enabled', 'false');
+          }
+        } else if (Notification.permission === 'granted') {
+          setIsPushEnabled(true);
+          localStorage.setItem('push_notifications_enabled', 'true');
+          new Notification("🎉 Push Notifications Active!", {
+            body: "Order update push notifications are enabled.",
+          });
+        } else {
+          alert("Notification permission is blocked by browser settings. Please enable notifications for this site in your address bar.");
+          setIsPushEnabled(false);
+          localStorage.setItem('push_notifications_enabled', 'false');
+        }
+      } else {
+        alert("Push notifications are not supported in your browser.");
+      }
+    } else {
+      setIsPushEnabled(false);
+      localStorage.setItem('push_notifications_enabled', 'false');
+    }
+  };
 
   // Sync internalTab when prop activeTab changes
   React.useEffect(() => {
@@ -283,6 +329,76 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </button>
                 </div>
               </form>
+            )}
+          </div>
+
+          {/* In-App Push Notification Opt-in Settings Card */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <Bell className="w-5 h-5 text-emerald-600 animate-bounce" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    Enable Order Updates Push Notifications
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5 max-w-xl leading-relaxed">
+                    Receive instant Blinkit-style delivery push notifications on your phone or desktop when shopkeepers accept, prepare, and deliver your order!
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${
+                  isPushEnabled
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                }`}>
+                  {isPushEnabled ? 'Push Active ✓' : 'Push Off'}
+                </span>
+
+                <button
+                  onClick={() => handleTogglePush(!isPushEnabled)}
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isPushEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                  }`}
+                  role="switch"
+                  aria-checked={isPushEnabled}
+                  title="Toggle Order Updates Push Notifications"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      isPushEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {isPushEnabled && (
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs flex-wrap gap-2">
+                <span className="text-slate-500 text-[11px]">
+                  Browser Status: <strong className="text-emerald-700 capitalize font-bold">{typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'Not supported'}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                      new Notification("🔔 Test Order Push Alert", {
+                        body: "Your order update push notification system is working perfectly!",
+                        icon: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80",
+                      });
+                    } else {
+                      handleTogglePush(true);
+                    }
+                  }}
+                  className="text-emerald-700 hover:text-emerald-800 font-extrabold text-[11px] underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Send Test Notification</span>
+                </button>
+              </div>
             )}
           </div>
 

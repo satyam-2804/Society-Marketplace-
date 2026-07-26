@@ -258,16 +258,27 @@ export const AuthModal: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <Mail className="w-3.5 h-3.5 text-emerald-600" /> Email Address
+                    <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                    {activeTab === 'admin'
+                      ? 'Admin Email Address'
+                      : activeTab === 'store_owner'
+                      ? 'Email, Mobile Number, or Store Name'
+                      : 'Email Address or Mobile Number'}
                   </label>
                   <input
-                    type="email"
+                    type="text"
                     required
                     disabled={isLoading}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={activeTab === 'admin' ? 'e.g. admin@society.com' : 'e.g. resident@society.com'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-rose-500 disabled:opacity-60"
+                    placeholder={
+                      activeTab === 'admin'
+                        ? 'e.g. satyam443355@gmail.com'
+                        : activeTab === 'store_owner'
+                        ? 'e.g. 9876543210 or owner@email.com or Store Name'
+                        : 'e.g. resident@email.com or 9876543210'
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-emerald-600 disabled:opacity-60 font-medium"
                   />
                 </div>
 
@@ -504,20 +515,20 @@ export const AuthModal: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Category *
+                      Store Category / Purpose *
                     </label>
-                    <select
+                    <input
+                      type="text"
+                      required
                       disabled={isLoading}
                       value={storeCategory}
                       onChange={(e) => setStoreCategory(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-900 outline-none disabled:opacity-60"
-                    >
-                      <option value="Groceries & Daily Essentials">Groceries & Essentials</option>
-                      <option value="Fresh Vegetables & Organic Fruits">Vegetables & Fruits</option>
-                      <option value="Medicines & First Aid">Medicines & Pharmacy</option>
-                      <option value="Bakery, Milk & Snacks">Bakery & Dairy</option>
-                      <option value="Home Services & Hardware">Services & Hardware</option>
-                    </select>
+                      placeholder="e.g. Stationery, Grocery, Pharmacy, Hardware, Bakery..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none disabled:opacity-60 focus:bg-white focus:border-emerald-600 font-semibold"
+                    />
+                    <p className="text-[10px] text-slate-500 font-medium mt-1">
+                      Specify what your store is for (e.g. Stationery, Grocery, Hardware, Mobile Services).
+                    </p>
                   </div>
 
                   <div>

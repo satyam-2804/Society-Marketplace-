@@ -148,30 +148,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </motion.div>
           </div>
 
-          {/* Quick Demo Data Controls for testing */}
-          <div className="mt-10 max-w-xl mx-auto p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-4 text-xs">
+          {/* Cloud Synchronization Status Indicator */}
+          <div className="mt-10 max-w-xl mx-auto p-3.5 bg-white/90 backdrop-blur-xs rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-4 text-xs">
             <div className="flex items-center gap-2">
               <PackageCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span className="text-slate-600">
-                Current Registered Shops: <strong className="text-slate-900 font-bold">{stores.length}</strong>
+                Live Society Outlets: <strong className="text-slate-900 font-bold">{stores.length} Active</strong>
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {stores.length === 0 ? (
+              {stores.length === 0 && (
                 <button
                   onClick={loadDemoStores}
                   className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg font-semibold text-[11px] transition-colors flex items-center gap-1"
                 >
                   <Sparkles className="w-3 h-3 text-emerald-600" />
-                  <span>Load Demo Stores</span>
-                </button>
-              ) : (
-                <button
-                  onClick={clearAllStores}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-lg font-semibold text-[11px] transition-colors flex items-center gap-1"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Clear All Stores</span>
+                  <span>Initialize Sample Stores</span>
                 </button>
               )}
             </div>

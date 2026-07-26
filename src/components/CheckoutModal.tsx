@@ -22,10 +22,19 @@ export const CheckoutModal: React.FC = () => {
   );
   const [mobile, setMobile] = useState(currentUser?.mobile || '+91 98111 22334');
   const [fullName, setFullName] = useState(currentUser?.fullName || 'Rahul Verma');
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi' | 'card'>('upi');
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi' | 'card'>('cod');
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedUpi, setCopiedUpi] = useState(false);
+
+  // Sync profile details whenever checkout opens or user changes
+  React.useEffect(() => {
+    if (isCheckoutOpen && currentUser) {
+      if (currentUser.fullName) setFullName(currentUser.fullName);
+      if (currentUser.mobile) setMobile(currentUser.mobile);
+      if (currentUser.address) setDeliveryAddress(currentUser.address);
+    }
+  }, [isCheckoutOpen, currentUser]);
 
   if (!isCheckoutOpen) return null;
 
@@ -54,7 +63,7 @@ export const CheckoutModal: React.FC = () => {
       return;
     }
 
-    const res = placeOrder(deliveryAddress, paymentMethod, notes);
+    const res = placeOrder(deliveryAddress, 'cod', notes);
     if (!res.success) {
       setErrorMsg(res.message);
     } else {
