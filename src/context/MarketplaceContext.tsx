@@ -21,8 +21,10 @@ function cleanObject(obj: any): any {
 
 const safeSetDoc = (docRef: any, data: any, options?: any) => {
   const cleanedData = cleanObject(data);
-  return options ? safeSetDoc(docRef, cleanedData, options) : setDoc(docRef, cleanedData);
+  return options ? setDoc(docRef, cleanedData, options) : setDoc(docRef, cleanedData);
 };
+
+import { safeLocalStorage } from '../lib/storage';
 
 import {
   User,
@@ -181,7 +183,7 @@ const MarketplaceContext = createContext<MarketplaceContextType | undefined>(und
 export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial state from LocalStorage or defaults
   const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('sm_users');
+    const saved = safeLocalStorage.getItem('sm_users');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -195,8 +197,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('sm_current_user');
-    return saved ? JSON.parse(saved) : null;
+    return safeLocalStorage.getJSON<User | null>('sm_current_user', null);
   });
 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
@@ -216,13 +217,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('sm_cart');
-    return saved ? JSON.parse(saved) : [];
+    return safeLocalStorage.getJSON<CartItem[]>('sm_cart', []);
   });
 
   const [coupons, setCoupons] = useState<Coupon[]>(() => {
-    const saved = localStorage.getItem('sm_coupons');
-    const loaded: Coupon[] = saved ? JSON.parse(saved) : INITIAL_COUPONS;
+    const loaded = safeLocalStorage.getJSON<Coupon[]>('sm_coupons', INITIAL_COUPONS);
     // Ensure PREETU and WELCOME5 always exist
     const hasPreetu = loaded.some((c) => c.code === 'PREETU');
     const hasWelcome5 = loaded.some((c) => c.code === 'WELCOME5');
@@ -260,8 +259,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('sm_notifications');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    return safeLocalStorage.getJSON<AppNotification[]>('sm_notifications', INITIAL_NOTIFICATIONS);
   });
 
   const [reviews, setReviews] = useState<Review[]>(() => {
@@ -284,7 +282,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [deliveredEmailOrder, setDeliveredEmailOrder] = useState<Order | null>(null);
 
   const [isAdminTester, setIsAdminTester] = useState<boolean>(() => {
-    return localStorage.getItem('isAdminTester') === 'true';
+    return safeLocalStorage.getItem('isAdminTester') === 'true';
   });
 
   const [isStateLoadedFromCloud, setIsStateLoadedFromCloud] = useState(false);
@@ -394,6 +392,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       } else {
         setCoupons(list);
       }
+    }, (err) => {
+      console.error("Firestore coupons sync error:", err);
     });
 
     // 6. Banners snapshot listener
@@ -409,6 +409,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       } else {
         setBanners(list);
       }
+    }, (err) => {
+      console.error("Firestore banners sync error:", err);
     });
 
     // 7. Notifications snapshot listener
@@ -425,6 +427,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setNotifications(list);
       }
+    }, (err) => {
+      console.error("Firestore notifications sync error:", err);
     });
 
     // 8. Reviews snapshot listener
@@ -434,6 +438,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         list.push({ id: docSnap.id, ...docSnap.data() } as Review);
       });
       setReviews(list);
+    }, (err) => {
+      console.error("Firestore reviews sync error:", err);
     });
 
     return () => {
@@ -483,54 +489,54 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Sync to LocalStorage
   useEffect(() => {
-    localStorage.setItem('sm_users', JSON.stringify(users));
+    safeLocalStorage.setItem('sm_users', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem('sm_current_user', JSON.stringify(currentUser));
+    safeLocalStorage.setItem('sm_current_user', JSON.stringify(currentUser));
     setCurrentRole(currentUser ? currentUser.role : 'guest');
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('sm_stores', JSON.stringify(stores));
+    safeLocalStorage.setItem('sm_stores', JSON.stringify(stores));
   }, [stores]);
 
   useEffect(() => {
-    localStorage.setItem('sm_products', JSON.stringify(products));
+    safeLocalStorage.setItem('sm_products', JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('sm_orders', JSON.stringify(orders));
+    safeLocalStorage.setItem('sm_orders', JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
-    localStorage.setItem('sm_cart', JSON.stringify(cart));
+    safeLocalStorage.setItem('sm_cart', JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem('sm_coupons', JSON.stringify(coupons));
+    safeLocalStorage.setItem('sm_coupons', JSON.stringify(coupons));
   }, [coupons]);
 
   useEffect(() => {
-    localStorage.setItem('sm_banners', JSON.stringify(banners));
+    safeLocalStorage.setItem('sm_banners', JSON.stringify(banners));
   }, [banners]);
 
   useEffect(() => {
-    localStorage.setItem('sm_notifications', JSON.stringify(notifications));
+    safeLocalStorage.setItem('sm_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem('sm_reviews', JSON.stringify(reviews));
+    safeLocalStorage.setItem('sm_reviews', JSON.stringify(reviews));
   }, [reviews]);
 
   // Theme State (System Auto / Light / Dark)
   const [themeMode, setThemeModeState] = useState<'system' | 'light' | 'dark'>(() => {
-    return (localStorage.getItem('sm_theme') as 'system' | 'light' | 'dark') || 'system';
+    return (safeLocalStorage.getItem('sm_theme') as 'system' | 'light' | 'dark') || 'system';
   });
 
   const setThemeMode = (mode: 'system' | 'light' | 'dark') => {
     setThemeModeState(mode);
-    localStorage.setItem('sm_theme', mode);
+    safeLocalStorage.setItem('sm_theme', mode);
   };
 
   useEffect(() => {
@@ -602,7 +608,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setCurrentRole('admin');
       setIsAuthModalOpen(false);
       setIsAdminTester(true);
-      localStorage.setItem('isAdminTester', 'true');
+      safeLocalStorage.setItem('isAdminTester', 'true');
       return { success: true, message: 'Welcome back, Satyam (Society Admin)!' };
     }
 
@@ -635,7 +641,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setCurrentRole(foundUser.role);
     setIsAuthModalOpen(false);
     setIsAdminTester(false);
-    localStorage.removeItem('isAdminTester');
+    safeLocalStorage.removeItem('isAdminTester');
     return { success: true, message: `Welcome back, ${foundUser.fullName}!` };
   };
 
@@ -1026,7 +1032,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       .catch((err) => console.warn('Direct store fetch verification note:', err));
 
     // Save to LocalStorage
-    localStorage.setItem('sm_current_user', JSON.stringify(newUser));
+    safeLocalStorage.setItem('sm_current_user', JSON.stringify(newUser));
 
     // Notify Admin (satyam443355@gmail.com)
     const notif: AppNotification = {
@@ -1052,7 +1058,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setCart([]);
     setActiveCoupon(null);
     setIsAdminTester(false);
-    localStorage.removeItem('isAdminTester');
+    safeLocalStorage.removeItem('isAdminTester');
   };
 
   const switchRoleQuick = (role: UserRole, storeId?: string) => {
@@ -1790,7 +1796,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       .catch((err) => console.warn('Direct store fetch verification note:', err));
 
     // Save to LocalStorage
-    localStorage.setItem('sm_current_user', JSON.stringify(updatedUser));
+    safeLocalStorage.setItem('sm_current_user', JSON.stringify(updatedUser));
 
     // Notify Admin (satyam443355@gmail.com)
     const notif: AppNotification = {

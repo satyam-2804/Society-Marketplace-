@@ -121,7 +121,6 @@ export const AuthModal: React.FC = () => {
       email: signupEmail,
       address,
       password: signupPassword,
-      role: 'customer',
     });
 
     if (!res.success) {

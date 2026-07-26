@@ -291,7 +291,6 @@ export const AdminDashboard: React.FC = () => {
       image:
         storeImage ||
         'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=800&q=80',
-      rating: 5.0,
       isOpen: true,
       openingTime: '07:00 AM',
       closingTime: '10:00 PM',

@@ -87,7 +87,7 @@ export interface Order {
   discount: number;
   totalAmount: number;
   paymentMethod: 'cod' | 'upi' | 'card';
-  paymentStatus: 'pending' | 'paid';
+  paymentStatus: 'pending' | 'paid' | 'refunded';
   status: OrderStatus;
   couponCode?: string;
   notes?: string;

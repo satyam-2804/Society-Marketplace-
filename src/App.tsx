@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MarketplaceProvider, useMarketplace } from './context/MarketplaceContext';
+import { safeLocalStorage } from './lib/storage';
 import { motion } from 'motion/react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
@@ -72,19 +73,14 @@ function MarketplaceApp() {
 
   // Recent searches state
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('sm_recent_searches');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+    return safeLocalStorage.getJSON<string[]>('sm_recent_searches', []);
   });
 
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // Sync recent searches to localStorage
   useEffect(() => {
-    localStorage.setItem('sm_recent_searches', JSON.stringify(recentSearches));
+    safeLocalStorage.setItem('sm_recent_searches', JSON.stringify(recentSearches));
   }, [recentSearches]);
 
   // Helper to add query to recent searches
@@ -166,7 +162,6 @@ function MarketplaceApp() {
             setViewMode('app');
             setActiveView(view);
           }}
-          onGoLanding={() => setViewMode('landing')}
         />
         <LandingPage
           onBrowseMarketplace={() => {
@@ -198,7 +193,6 @@ function MarketplaceApp() {
           setViewMode('app');
           setActiveView(view);
         }}
-        onGoLanding={() => setViewMode('landing')}
       />
 
       {/* Main Content Area */}

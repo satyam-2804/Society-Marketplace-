@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
+import { safeLocalStorage } from '../lib/storage';
 import {
   Building2,
   Search,
@@ -57,13 +58,13 @@ export const Header: React.FC<HeaderProps> = ({
   );
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem('push_notifications_enabled');
+    const stored = safeLocalStorage.getItem('push_notifications_enabled');
     if (stored !== null) return stored === 'true';
     return 'Notification' in window && Notification.permission === 'granted';
   });
   const [showPushBanner, setShowPushBanner] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    const dismissed = localStorage.getItem('push_banner_dismissed');
+    const dismissed = safeLocalStorage.getItem('push_banner_dismissed');
     return dismissed !== 'true';
   });
 
@@ -75,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
           setNotifPermission(res);
           if (res === 'granted') {
             setIsPushEnabled(true);
-            localStorage.setItem('push_notifications_enabled', 'true');
+            safeLocalStorage.setItem('push_notifications_enabled', 'true');
             new Notification("🎉 Push Notifications Enabled!", {
               body: "You will now get instant live status updates for your society orders!",
               icon: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80",
@@ -83,25 +84,25 @@ export const Header: React.FC<HeaderProps> = ({
           } else {
             alert("Notification permission was denied. Please allow notifications in your browser site settings.");
             setIsPushEnabled(false);
-            localStorage.setItem('push_notifications_enabled', 'false');
+            safeLocalStorage.setItem('push_notifications_enabled', 'false');
           }
         } else if (Notification.permission === 'granted') {
           setIsPushEnabled(true);
-          localStorage.setItem('push_notifications_enabled', 'true');
+          safeLocalStorage.setItem('push_notifications_enabled', 'true');
           new Notification("🎉 Push Notifications Active!", {
             body: "Order update push notifications are enabled.",
           });
         } else {
           alert("Notification permission is blocked by browser settings. Please enable notifications for this site in your address bar.");
           setIsPushEnabled(false);
-          localStorage.setItem('push_notifications_enabled', 'false');
+          safeLocalStorage.setItem('push_notifications_enabled', 'false');
         }
       } else {
         alert("Push notifications are not supported in your browser.");
       }
     } else {
       setIsPushEnabled(false);
-      localStorage.setItem('push_notifications_enabled', 'false');
+      safeLocalStorage.setItem('push_notifications_enabled', 'false');
     }
   };
 
@@ -164,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => {
                 setShowPushBanner(false);
-                localStorage.setItem('push_banner_dismissed', 'true');
+                safeLocalStorage.setItem('push_banner_dismissed', 'true');
               }}
               className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
               title="Dismiss banner"

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useMarketplace } from '../../context/MarketplaceContext';
+import { safeLocalStorage } from '../../lib/storage';
 import {
   User as UserIcon,
   ShoppingBag,
@@ -51,7 +52,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem('push_notifications_enabled');
+    const stored = safeLocalStorage.getItem('push_notifications_enabled');
     if (stored !== null) return stored === 'true';
     return 'Notification' in window && Notification.permission === 'granted';
   });
@@ -63,32 +64,32 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           const res = await Notification.requestPermission();
           if (res === 'granted') {
             setIsPushEnabled(true);
-            localStorage.setItem('push_notifications_enabled', 'true');
+            safeLocalStorage.setItem('push_notifications_enabled', 'true');
             new Notification("🎉 Push Notifications Enabled!", {
               body: "You will now receive instant live order status alerts on your screen!",
             });
           } else {
             alert("Notification permission was denied. Please allow notifications in site settings.");
             setIsPushEnabled(false);
-            localStorage.setItem('push_notifications_enabled', 'false');
+            safeLocalStorage.setItem('push_notifications_enabled', 'false');
           }
         } else if (Notification.permission === 'granted') {
           setIsPushEnabled(true);
-          localStorage.setItem('push_notifications_enabled', 'true');
+          safeLocalStorage.setItem('push_notifications_enabled', 'true');
           new Notification("🎉 Push Notifications Active!", {
             body: "Order update push notifications are enabled.",
           });
         } else {
           alert("Notification permission is blocked by browser settings. Please enable notifications for this site in your address bar.");
           setIsPushEnabled(false);
-          localStorage.setItem('push_notifications_enabled', 'false');
+          safeLocalStorage.setItem('push_notifications_enabled', 'false');
         }
       } else {
         alert("Push notifications are not supported in your browser.");
       }
     } else {
       setIsPushEnabled(false);
-      localStorage.setItem('push_notifications_enabled', 'false');
+      safeLocalStorage.setItem('push_notifications_enabled', 'false');
     }
   };
 
