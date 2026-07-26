@@ -196,15 +196,9 @@ const MarketplaceContext = createContext<MarketplaceContextType | undefined>(und
 export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial state from LocalStorage or defaults
   const [users, setUsers] = useState<User[]>(() => {
-    const saved = safeLocalStorage.getItem('sm_users');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const adminOnly = parsed.filter((u: User) => u.role === 'admin' || u.id === 'user_admin');
-          return adminOnly.length > 0 ? adminOnly : INITIAL_USERS;
-        }
-      } catch (e) {}
+    const saved = safeLocalStorage.getJSON<User[]>('sm_users', []);
+    if (Array.isArray(saved) && saved.length > 0) {
+      return saved;
     }
     return INITIAL_USERS;
   });
@@ -218,14 +212,26 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [stores, setStores] = useState<Store[]>(() => {
+    const saved = safeLocalStorage.getJSON<Store[]>('sm_stores', []);
+    if (Array.isArray(saved) && saved.length > 0) {
+      return saved;
+    }
     return INITIAL_STORES;
   });
 
   const [products, setProducts] = useState<Product[]>(() => {
+    const saved = safeLocalStorage.getJSON<Product[]>('sm_products', []);
+    if (Array.isArray(saved) && saved.length > 0) {
+      return saved;
+    }
     return INITIAL_PRODUCTS;
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
+    const saved = safeLocalStorage.getJSON<Order[]>('sm_orders', []);
+    if (Array.isArray(saved)) {
+      return saved;
+    }
     return INITIAL_ORDERS;
   });
 
@@ -268,6 +274,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [banners, setBanners] = useState<Banner[]>(() => {
+    const saved = safeLocalStorage.getJSON<Banner[]>('sm_banners', []);
+    if (Array.isArray(saved) && saved.length > 0) {
+      return saved;
+    }
     return INITIAL_BANNERS;
   });
 
@@ -276,6 +286,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [reviews, setReviews] = useState<Review[]>(() => {
+    const saved = safeLocalStorage.getJSON<Review[]>('sm_reviews', []);
+    if (Array.isArray(saved)) {
+      return saved;
+    }
     return INITIAL_REVIEWS;
   });
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MarketplaceProvider, useMarketplace } from './context/MarketplaceContext';
 import { safeLocalStorage, safeToLower } from './lib/storage';
+import { User } from './types';
 import { motion } from 'motion/react';
 import { Header } from './components/Header';
 import { LandingPage } from './components/LandingPage';
@@ -63,10 +64,19 @@ function MarketplaceApp() {
   } = useMarketplace();
 
   // Mode: 'landing' (Initial brief homepage) or 'app' (Main interactive marketplace)
-  const [viewMode, setViewMode] = useState<'landing' | 'app'>('landing');
+  const [viewMode, setViewMode] = useState<'landing' | 'app'>(() => {
+    const savedUser = safeLocalStorage.getJSON<User | null>('sm_current_user', null);
+    return savedUser ? 'app' : 'landing';
+  });
 
   // App View
-  const [activeView, setActiveView] = useState<'home' | 'stores' | 'orders' | 'profile' | 'dashboard'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'stores' | 'orders' | 'profile' | 'dashboard'>(() => {
+    const savedUser = safeLocalStorage.getJSON<User | null>('sm_current_user', null);
+    if (savedUser && (savedUser.role === 'store_owner' || savedUser.role === 'admin')) {
+      return 'dashboard';
+    }
+    return 'home';
+  });
 
   // Sub-tab inside selected store: 'products' or 'reviews'
   const [storeTab, setStoreTab] = useState<'products' | 'reviews'>('products');
