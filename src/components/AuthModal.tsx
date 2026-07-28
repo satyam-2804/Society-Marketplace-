@@ -198,7 +198,7 @@ export const AuthModal: React.FC = () => {
                   : 'hover:text-slate-900'
               }`}
             >
-              Resident
+              Customer
             </button>
             <button
               onClick={() => !isLoading && setActiveTab('store_owner')}
@@ -241,7 +241,7 @@ export const AuthModal: React.FC = () => {
             <div>
               <div className="mb-4">
                 <h3 className="text-xl font-extrabold text-slate-900">
-                  {activeTab === 'customer_login' && 'Resident Login'}
+                  {activeTab === 'customer_login' && 'Customer Login'}
                   {activeTab === 'store_owner' && 'Store Owner Portal'}
                   {activeTab === 'admin' && 'Society Admin Portal'}
                 </h3>
@@ -272,10 +272,10 @@ export const AuthModal: React.FC = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={
                       activeTab === 'admin'
-                        ? 'e.g. satyam443355@gmail.com'
+                        ? 'e.g. admin@society.com'
                         : activeTab === 'store_owner'
                         ? 'e.g. 9876543210 or owner@email.com or Store Name'
-                        : 'e.g. resident@email.com or 9876543210'
+                        : 'e.g. customer@email.com or 9876543210'
                     }
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-emerald-600 disabled:opacity-60 font-medium"
                   />
@@ -326,7 +326,7 @@ export const AuthModal: React.FC = () => {
               {activeTab === 'customer_login' && (
                 <div className="mt-4 text-center">
                   <p className="text-xs text-slate-500 font-medium">
-                    New resident in society?{' '}
+                    New customer in society?{' '}
                     <button
                       onClick={() => !isLoading && setActiveTab('customer_signup')}
                       disabled={isLoading}
@@ -360,7 +360,7 @@ export const AuthModal: React.FC = () => {
           {activeTab === 'customer_signup' && (
             <div>
               <div className="mb-4">
-                <h3 className="text-xl font-extrabold text-slate-900">Resident Registration</h3>
+                <h3 className="text-xl font-extrabold text-slate-900">Customer Registration</h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">Register for 20-min society doorstep deliveries</p>
               </div>
 
@@ -458,7 +458,7 @@ export const AuthModal: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <span>Complete Resident Sign Up</span>
+                      <span>Complete Customer Sign Up</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

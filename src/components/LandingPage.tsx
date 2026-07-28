@@ -54,7 +54,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* 3 Main Role Portals (Customer, Store Owner, Admin) */}
           <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {/* Card 1: Customer / Resident */}
+            {/* Card 1: Customer */}
             <motion.div
               whileHover={{ y: -4 }}
               className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-500 transition-all flex flex-col justify-between"
@@ -63,8 +63,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4">
                   <ShoppingBag className="w-6 h-6 stroke-[2.2]" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">Resident Portal</h3>
-                <p className="text-xs text-slate-500 font-medium mt-1">For Society Flat Owners & Tenants</p>
+                <h3 className="text-xl font-bold text-slate-900">Customer Portal</h3>
+                <p className="text-xs text-slate-500 font-medium mt-1">For Society Flat Owners & Customers</p>
                 <p className="text-xs text-slate-600 mt-3 leading-relaxed">
                   Browse items from society shops, order daily groceries, fresh veggies & essentials with 20-minute doorstep delivery.
                 </p>
@@ -75,14 +75,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => openAuthModal('login')}
                   className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-xs"
                 >
-                  <span>Resident Login / Sign Up</span>
+                  <span>Customer Login</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={onBrowseMarketplace}
-                  className="w-full py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs border border-slate-200 transition-colors"
+                  onClick={() => openAuthModal('signup')}
+                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs border border-emerald-200 transition-colors flex items-center justify-center gap-2 shadow-xs"
                 >
-                  Browse Shops as Guest ({stores.length} Active)
+                  <span>Customer Register / Sign Up</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </motion.div>

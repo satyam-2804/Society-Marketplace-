@@ -21,8 +21,24 @@ messaging.onBackgroundMessage((payload) => {
     body: payload.notification?.body || 'Check your Manokamna Marketplace app for details.',
     icon: payload.notification?.icon || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
     badge: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
+    vibrate: [300, 100, 300, 100, 400],
+    requireInteraction: true,
+    renotify: true,
+    tag: 'order-update',
     data: payload.data
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      if (clientList.length > 0) {
+        return clientList[0].focus();
+      }
+      return clients.openWindow('/');
+    })
+  );
 });

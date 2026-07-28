@@ -193,6 +193,7 @@ export const StoreOwnerDashboard: React.FC = () => {
     updateStoreDetails,
     updateOrderStatus,
     registerStoreForCurrentUser,
+    registerFcmToken,
     isLoadingProducts,
     isLoadingStores,
   } = useMarketplace();
@@ -407,56 +408,116 @@ export const StoreOwnerDashboard: React.FC = () => {
 
   const prevPendingCountRef = useRef(pendingOrders.length);
 
+  const playOrderRingtoneSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      // Phone order notification ringtone (two cycles of E5-G#5-B5-E6)
+      const ringNotes = [
+        { freq: 659.25, start: 0, duration: 0.15 },    // E5
+        { freq: 830.61, start: 0.15, duration: 0.15 },  // G#5
+        { freq: 987.77, start: 0.30, duration: 0.15 },  // B5
+        { freq: 1318.51, start: 0.45, duration: 0.35 }, // E6
+        { freq: 659.25, start: 0.90, duration: 0.15 },  // E5
+        { freq: 830.61, start: 1.05, duration: 0.15 },  // G#5
+        { freq: 987.77, start: 1.20, duration: 0.15 },  // B5
+        { freq: 1318.51, start: 1.35, duration: 0.40 }, // E6
+      ];
+
+      ringNotes.forEach((note) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(note.freq, ctx.currentTime + note.start);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime + note.start);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note.start + note.duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + note.start);
+        osc.stop(ctx.currentTime + note.start + note.duration);
+      });
+    } catch (err) {
+      console.warn("Audio chime playback error:", err);
+    }
+  };
+
   const requestPushPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       try {
         const perm = await Notification.requestPermission();
         if (perm === 'granted') {
           setPushEnabled(true);
-          new Notification('🔔 Order Push Alerts Active!', {
-            body: `Push notifications are enabled. You will get instant order alerts for ${store.name}!`,
-            icon: '/icon-192.png',
-          });
+          if (currentUser?.id) {
+            registerFcmToken(currentUser.id);
+          }
+          playOrderRingtoneSound();
+          const testNotif = new Notification(`🔔 Phone Order Alerts Activated - ${store.name}`, {
+            body: `Permission granted! You will now receive instant phone notifications with sound whenever a customer places an order!`,
+            icon: store.image || '/icon-192.png',
+            badge: '/icon-192.png',
+            requireInteraction: true,
+            tag: 'order-alert-setup',
+            vibrate: [300, 100, 300, 100, 400],
+          } as any);
+          testNotif.onclick = () => {
+            window.focus();
+            testNotif.close();
+          };
+        } else if (perm === 'denied') {
+          alert("Notification permission was denied. Please allow notifications in your device/site settings to receive instant order alerts on your phone.");
         }
       } catch (err) {
         console.error("Push permission error:", err);
       }
+    } else {
+      alert("Browser/Device notification API is not supported on this browser.");
     }
   };
 
   useEffect(() => {
+    if (currentUser?.id && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      registerFcmToken(currentUser.id);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
     if (pendingOrders.length > prevPendingCountRef.current) {
-      // Trigger Web Push Notification
+      const latestOrder = pendingOrders[0];
+
+      // Trigger Web Push Notification for phone notification panel
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification(`🚨 New Order Received for ${store.name}!`, {
-          body: `You received a new resident order. Tap to view and accept immediately!`,
-          icon: '/icon-192.png',
-        });
+        const notifTitle = `🚨 New Customer Order Received! (${store.name})`;
+        const notifBody = latestOrder
+          ? `Order Amount: ₹${latestOrder.totalAmount} • Customer: ${latestOrder.customerName}\nAddress: ${latestOrder.deliveryAddress}\nTap to view and accept order!`
+          : `You received a new order for ${store.name}. Tap to view and accept immediately!`;
+
+        try {
+          const orderNotif = new Notification(notifTitle, {
+            body: notifBody,
+            icon: store.image || '/icon-192.png',
+            badge: '/icon-192.png',
+            requireInteraction: true,
+            renotify: true,
+            tag: `store-order-${latestOrder?.id || Date.now()}`,
+            vibrate: [300, 100, 300, 100, 500],
+          } as any);
+
+          orderNotif.onclick = () => {
+            window.focus();
+            orderNotif.close();
+          };
+        } catch (e) {
+          console.error("Order notification error:", e);
+        }
       }
 
-      // Play audio chime alert
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx) {
-          const ctx = new AudioCtx();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
-          gain.gain.setValueAtTime(0.3, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.4);
-        }
-      } catch (e) {
-        console.log("Audio chime error:", e);
-      }
+      // Play phone ringtone sound
+      playOrderRingtoneSound();
     }
     prevPendingCountRef.current = pendingOrders.length;
-  }, [pendingOrders.length, store.name]);
+  }, [pendingOrders.length, store.name, store.image]);
 
   // Today's delivered orders calculation
   const todayDateStr = new Date().toDateString();
@@ -600,9 +661,34 @@ export const StoreOwnerDashboard: React.FC = () => {
             <h4 className="font-extrabold text-sm text-amber-900">⏳ Store Approval Pending Admin Authorization</h4>
             <p className="text-xs text-amber-800 mt-1 leading-relaxed">
               Basic shop details for <strong>"{store.name}"</strong> have been submitted to Society Admin (<strong>satyam443355@gmail.com</strong>).
-              Once Admin confirms and approves your store application, your store will be live for residents to order!
+              Once Admin confirms and approves your store application, your store will be live for customers to order!
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Prominent Phone & System Order Notifications Banner */}
+      {typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted' && store.status !== 'pending' && (
+        <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white rounded-3xl p-5 mb-6 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-emerald-500/50">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 text-2xl shadow-inner">
+              🔔
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                Enable Instant Phone & Lockscreen Order Notifications
+              </h4>
+              <p className="text-xs text-emerald-100 mt-1 leading-relaxed max-w-2xl font-medium">
+                Allow notification permission to receive live order popups directly in your phone's notification panel with sound alerts as soon as a customer places an order!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={requestPushPermission}
+            className="shrink-0 px-5 py-2.5 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 font-black text-xs transition-all shadow-sm flex items-center gap-2 border border-white/80 active:scale-95"
+          >
+            <span>Allow Phone Notifications 🔔</span>
+          </button>
         </div>
       )}
 
@@ -1170,15 +1256,31 @@ export const StoreOwnerDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Custom Delivery Fee per Order (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={store.deliveryFee !== undefined ? store.deliveryFee : 15}
-                  onChange={(e) => updateStoreDetails(store.id, { deliveryFee: parseFloat(e.target.value) || 0 })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-amber-600"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Custom Delivery Fee per Order (₹)</label>
+                  <p className="text-[10px] text-slate-500 mb-1">Standard delivery charge applied to orders from your shop.</p>
+                  <input
+                    type="number"
+                    min="0"
+                    value={store.deliveryFee !== undefined ? store.deliveryFee : 15}
+                    onChange={(e) => updateStoreDetails(store.id, { deliveryFee: Math.max(0, parseFloat(e.target.value) || 0) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-amber-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Free Delivery Minimum Order Threshold (₹)</label>
+                  <p className="text-[10px] text-slate-500 mb-1">Orders ≥ this amount get FREE delivery. Set 0 for no free delivery.</p>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 199"
+                    value={store.freeDeliveryThreshold !== undefined ? store.freeDeliveryThreshold : 199}
+                    onChange={(e) => updateStoreDetails(store.id, { freeDeliveryThreshold: Math.max(0, parseFloat(e.target.value) || 0) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-amber-600"
+                  />
+                </div>
               </div>
             </div>
           </div>

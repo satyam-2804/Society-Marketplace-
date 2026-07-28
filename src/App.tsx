@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MarketplaceProvider, useMarketplace } from './context/MarketplaceContext';
 import { safeLocalStorage, safeToLower } from './lib/storage';
 import { User } from './types';
@@ -38,7 +38,63 @@ import {
   X,
   Camera,
   ArrowRight,
+  Sparkles,
 } from 'lucide-react';
+
+function getLevenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function calculateSimilarity(str1: string, str2: string): number {
+  const s1 = (str1 || '').toLowerCase().trim();
+  const s2 = (str2 || '').toLowerCase().trim();
+  if (!s1 || !s2) return 0;
+  if (s1 === s2) return 1;
+  if (s2.includes(s1) || s1.includes(s2)) return 0.85;
+
+  const words1 = s1.split(/\s+/);
+  const words2 = s2.split(/\s+/);
+  let maxWordScore = 0;
+
+  for (const w1 of words1) {
+    if (w1.length < 2) continue;
+    for (const w2 of words2) {
+      if (w2.length < 2) continue;
+      if (w2.includes(w1) || w1.includes(w2)) {
+        maxWordScore = Math.max(maxWordScore, 0.8);
+      }
+      const dist = getLevenshteinDistance(w1, w2);
+      const maxLen = Math.max(w1.length, w2.length);
+      const sim = 1 - dist / maxLen;
+      if (sim > maxWordScore) {
+        maxWordScore = sim;
+      }
+    }
+  }
+
+  const fullDist = getLevenshteinDistance(s1, s2);
+  const fullMaxLen = Math.max(s1.length, s2.length);
+  const fullSim = 1 - fullDist / fullMaxLen;
+
+  return Math.max(maxWordScore, fullSim);
+}
 
 function MarketplaceApp() {
   const {
@@ -142,9 +198,15 @@ function MarketplaceApp() {
     }
   }, [currentRole, activeView]);
 
-  // Filter products based on search query, category, and store selection
-  const filteredProducts = (products || []).filter((p) => {
+  const activeStores = (stores || []).filter(
+    (s) => s.status === 'active' || (currentUser?.role === 'store_owner' && currentUser?.storeId === s.id) || currentUser?.role === 'admin'
+  );
+  const activeStoreIds = new Set(activeStores.map((s) => s.id));
+
+  // Direct exact substring matching products
+  const directMatchingProducts = (products || []).filter((p) => {
     if (!p) return false;
+    if (!activeStoreIds.has(p.storeId)) return false;
     const query = safeToLower(searchQuery).trim();
     const matchesSearch =
       !query ||
@@ -160,6 +222,43 @@ function MarketplaceApp() {
 
     return matchesSearch && matchesCategory && matchesStore;
   });
+
+  const hasSearchQuery = Boolean(searchQuery.trim());
+  const isExactMatchFound = directMatchingProducts.length > 0 || !hasSearchQuery;
+
+  // Related fuzzy matching products when exact match is not found
+  const relatedMatchingProducts = useMemo(() => {
+    if (isExactMatchFound || !hasSearchQuery) return [];
+    const query = searchQuery.trim();
+
+    const candidates = (products || []).filter((p) => {
+      if (!p) return false;
+      if (!activeStoreIds.has(p.storeId)) return false;
+      const matchesStore = !selectedStoreId || p.storeId === selectedStoreId;
+      return matchesStore;
+    });
+
+    const scored = candidates.map((p) => {
+      const nameScore = calculateSimilarity(query, p.name);
+      const catScore = calculateSimilarity(query, p.category) * 0.9;
+      const descScore = calculateSimilarity(query, p.description) * 0.7;
+      const maxScore = Math.max(nameScore, catScore, descScore);
+      return { product: p, score: maxScore };
+    });
+
+    const matches = scored
+      .filter((item) => item.score >= 0.25)
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.product);
+
+    if (matches.length === 0) {
+      return candidates;
+    }
+
+    return matches;
+  }, [products, searchQuery, isExactMatchFound, hasSearchQuery, activeStoreIds, selectedStoreId]);
+
+  const filteredProducts = isExactMatchFound ? directMatchingProducts : relatedMatchingProducts;
 
   const selectedStore = stores.find((s) => s.id === selectedStoreId);
 
@@ -234,7 +333,7 @@ function MarketplaceApp() {
                   {/* Stores Grid */}
                   {isLoadingStores ? (
                     <StoreGridSkeleton count={4} />
-                  ) : stores.length === 0 ? (
+                  ) : activeStores.length === 0 ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 shadow-xs">
                       <StoreIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                       <p className="font-bold text-sm text-slate-800">No stores registered yet</p>
@@ -250,7 +349,7 @@ function MarketplaceApp() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {stores.map((store) => (
+                      {activeStores.map((store) => (
                         <StoreCard
                           key={store.id}
                           store={store}
@@ -426,7 +525,6 @@ function MarketplaceApp() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder={`Type product name (e.g. Milk, Atta, Tomato, Oil)...`}
                             className="w-full bg-transparent text-slate-900 text-sm font-semibold outline-none placeholder:text-slate-400 py-1.5 px-1"
-                            autoFocus
                           />
                           {searchQuery && (
                             <button
@@ -501,10 +599,40 @@ function MarketplaceApp() {
 
                     {/* Products Grid inside Selected Store */}
                     <section className="space-y-4">
+                      {/* Related Results Banner when exact match is missing */}
+                      {!isExactMatchFound && hasSearchQuery && (
+                        <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950 shadow-2xs">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-xl bg-amber-100/80 text-amber-800 shrink-0 mt-0.5">
+                              <Sparkles className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                              <h4 className="font-black text-xs sm:text-sm text-amber-950 flex items-center gap-1.5 flex-wrap">
+                                <span>No exact match found for</span>
+                                <span className="bg-amber-200/90 text-amber-950 px-2.5 py-0.5 rounded-lg font-mono font-black text-xs shadow-2xs">
+                                  "{searchQuery}"
+                                </span>
+                              </h4>
+                              <p className="text-xs text-amber-800 font-bold mt-1">
+                                ✨ Related results to your search:
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setSearchQuery('')}
+                            className="px-3.5 py-1.5 rounded-xl bg-amber-200 hover:bg-amber-300 text-amber-950 font-extrabold text-xs transition-colors shrink-0 self-end sm:self-auto shadow-3xs"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                         <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
                           <ShoppingBag className="w-5 h-5 text-emerald-600" />
-                          <span>Products Available ({isLoadingProducts ? '...' : filteredProducts.length})</span>
+                          <span>
+                            {!isExactMatchFound && hasSearchQuery ? 'Related Products' : 'Products Available'} ({isLoadingProducts ? '...' : filteredProducts.length})
+                          </span>
                         </h3>
                       </div>
 
@@ -561,13 +689,13 @@ function MarketplaceApp() {
                     onClick={() => openAuthModal('login')}
                     className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200"
                   >
-                    Resident Login
+                    Customer Login
                   </button>
                   <button
                     onClick={() => openAuthModal('signup')}
                     className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-xs"
                   >
-                    Register Resident
+                    Register Customer
                   </button>
                   <button
                     onClick={() => openAuthModal('store_owner')}
@@ -593,7 +721,7 @@ function MarketplaceApp() {
 
             {isLoadingStores ? (
               <StoreGridSkeleton count={6} />
-            ) : stores.length === 0 ? (
+            ) : activeStores.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-xs">
                 <StoreIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                 <p className="font-bold text-sm text-slate-800">No stores registered yet</p>
@@ -609,7 +737,7 @@ function MarketplaceApp() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {stores.map((store) => (
+                {activeStores.map((store) => (
                   <StoreCard
                     key={store.id}
                     store={store}

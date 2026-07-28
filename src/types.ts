@@ -51,6 +51,7 @@ export interface Store {
   deliveryTimeMinutes: number; // e.g., 15-20 mins
   minOrderAmount: number;
   deliveryFee?: number; // Custom delivery fee set by store owner
+  freeDeliveryThreshold?: number; // Order amount above which delivery fee is 0 (Free Delivery)
   upiId?: string; // Shopkeeper UPI ID for direct online payments (e.g. shopkeeper@upi)
   totalSales?: number;
   offers?: string[];

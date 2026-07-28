@@ -183,6 +183,7 @@ interface MarketplaceContextType {
   addBanner: (banner: Omit<Banner, 'id'>) => void;
   broadcastNotification: (title: string, message: string) => void;
   markNotificationAsRead: (notificationId: string) => void;
+  registerFcmToken: (userId: string) => Promise<void>;
   toggleBanUser: (userId: string) => void;
   deleteStore: (storeId: string) => void;
 
@@ -1302,11 +1303,19 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const subtotal = getCartSubtotal();
     if (subtotal === 0) return 0;
     const store = getCartStore();
-    if (activeCoupon?.code === 'FREEDEL' || activeCoupon?.code === 'PREETU' || subtotal >= 199) return 0;
-    if (store && store.deliveryFee !== undefined) {
-      return store.deliveryFee;
+
+    if (activeCoupon?.code === 'FREEDEL' || activeCoupon?.code === 'PREETU') return 0;
+
+    if (store) {
+      const threshold = store.freeDeliveryThreshold !== undefined ? store.freeDeliveryThreshold : 199;
+      if (threshold > 0 && subtotal >= threshold) {
+        return 0;
+      }
+      return store.deliveryFee !== undefined ? store.deliveryFee : 15;
     }
-    return store ? 15 : 20;
+
+    if (subtotal >= 199) return 0;
+    return 20;
   };
 
   const getCartTotal = () => {
@@ -1807,7 +1816,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isOpen: true,
       openingTime: storeDetails.openingTime || '08:00 AM',
       closingTime: storeDetails.closingTime || '10:00 PM',
-      status: 'active', // Active immediately on cloud Firestore
+      status: 'pending', // Pending Admin approval
       deliveryTimeMinutes: storeDetails.deliveryTimeMinutes || 15,
       minOrderAmount: storeDetails.minOrderAmount || 50,
       totalSales: 0,
@@ -1817,7 +1826,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       ...currentUser,
       role: 'store_owner',
       storeId: newStoreId,
-      isApproved: true,
+      isApproved: false, // Requires Admin approval
     };
 
     // 1. Optimistically update local state immediately
@@ -2135,16 +2144,53 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     setLastNotifiedId(latest.id);
 
-    // Trigger Browser Notification
-    if (window.Notification && Notification.permission === 'granted') {
+    // Play sound chime
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const notes = [
+          { freq: 659.25, start: 0, duration: 0.16 },    // E5
+          { freq: 830.61, start: 0.16, duration: 0.16 },  // G#5
+          { freq: 1046.50, start: 0.32, duration: 0.22 }, // C6
+          { freq: 1318.51, start: 0.56, duration: 0.35 }, // E6
+        ];
+        notes.forEach((note) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(note.freq, ctx.currentTime + note.start);
+          gain.gain.setValueAtTime(0.4, ctx.currentTime + note.start);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note.start + note.duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + note.start);
+          osc.stop(ctx.currentTime + note.start + note.duration);
+        });
+      }
+    } catch (e) {
+      console.warn("Chime sound playback error:", e);
+    }
+
+    // Trigger Native Phone / Browser Notification
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
         const title = latest.title;
-        const options = {
+        const options: any = {
           body: latest.message,
           icon: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
+          badge: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
           silent: false,
+          vibrate: [300, 100, 300, 100, 400],
+          requireInteraction: true,
+          renotify: true,
+          tag: latest.id,
         };
-        new Notification(title, options);
+        const notif = new Notification(title, options);
+        notif.onclick = () => {
+          window.focus();
+          notif.close();
+        };
       } catch (err) {
         console.error("Failed to trigger native notification:", err);
       }
@@ -2245,6 +2291,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         addBanner,
         broadcastNotification,
         markNotificationAsRead,
+        registerFcmToken,
         toggleBanUser,
         deleteStore,
       }}

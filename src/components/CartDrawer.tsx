@@ -102,6 +102,38 @@ export const CartDrawer: React.FC = () => {
                 </div>
               ) : (
                 <>
+                  {store && (() => {
+                    const threshold = store.freeDeliveryThreshold !== undefined ? store.freeDeliveryThreshold : 199;
+                    if (threshold > 0) {
+                      const remaining = threshold - subtotal;
+                      const progress = Math.min(100, Math.round((subtotal / threshold) * 100));
+                      return (
+                        <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl text-xs shadow-3xs">
+                          {remaining > 0 ? (
+                            <div>
+                              <div className="flex justify-between font-bold text-emerald-900 mb-1.5">
+                                <span>Add <strong className="text-emerald-700">₹{remaining}</strong> more for FREE Delivery</span>
+                                <span className="text-[10px] text-emerald-700 font-extrabold">{progress}%</span>
+                              </div>
+                              <div className="w-full bg-emerald-200/60 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-emerald-800 font-extrabold">
+                              <span className="text-base">🎉</span>
+                              <span>You unlocked FREE Delivery from {store.name}!</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   <div className="flex items-center justify-between text-xs text-slate-500 font-bold pb-2 border-b border-slate-100">
                     <span>{cart.length} Product(s)</span>
                     <button onClick={clearCart} className="text-rose-600 hover:underline">

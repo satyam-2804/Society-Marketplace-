@@ -133,7 +133,7 @@ export const RoleSwapper: React.FC = () => {
                     <div className="flex items-center gap-2.5">
                       <User className="w-4 h-4 text-emerald-600" />
                       <div>
-                        <p className="font-semibold">Resident Customer</p>
+                        <p className="font-semibold">Customer</p>
                         <p className="text-[10px] text-slate-500">Tower 4, Apt 602 (Rahul)</p>
                       </div>
                     </div>

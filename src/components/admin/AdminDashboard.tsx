@@ -234,6 +234,8 @@ export const AdminDashboard: React.FC = () => {
   const [ownerPhone, setOwnerPhone] = useState('');
   const [blockLocation, setBlockLocation] = useState('Block A, Shop #05');
   const [storeImage, setStoreImage] = useState('');
+  const [customDeliveryFee, setCustomDeliveryFee] = useState('15');
+  const [customFreeDeliveryThreshold, setCustomFreeDeliveryThreshold] = useState('199');
 
   // New Product Modal Form State (Admin can control shopkeeper products)
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
@@ -298,6 +300,8 @@ export const AdminDashboard: React.FC = () => {
       status: 'active',
       deliveryTimeMinutes: 15,
       minOrderAmount: 99,
+      deliveryFee: parseFloat(customDeliveryFee) || 0,
+      freeDeliveryThreshold: parseFloat(customFreeDeliveryThreshold) || 0,
     });
 
     // Reset fields
@@ -306,6 +310,8 @@ export const AdminDashboard: React.FC = () => {
     setOwnerPhone('');
     setBlockLocation('Block A, Shop #05');
     setStoreImage('');
+    setCustomDeliveryFee('15');
+    setCustomFreeDeliveryThreshold('199');
     setIsAddStoreOpen(false);
   };
 
@@ -1182,7 +1188,7 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-2 bg-white rounded-xl p-2.5 border border-slate-200/60 mt-4 text-center">
+                          <div className="grid grid-cols-4 gap-2 bg-white rounded-xl p-2.5 border border-slate-200/60 mt-4 text-center">
                             <div>
                               <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Revenue</span>
                               <span className="font-black text-emerald-700 text-xs">₹{(s.totalSales || 0).toLocaleString('en-IN')}</span>
@@ -1194,8 +1200,12 @@ export const AdminDashboard: React.FC = () => {
                               </span>
                             </div>
                             <div>
-                              <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Delivery Time</span>
-                              <span className="font-black text-slate-800 text-xs">{s.deliveryTimeMinutes} mins</span>
+                              <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Deliv Fee</span>
+                              <span className="font-black text-amber-700 text-xs">₹{s.deliveryFee !== undefined ? s.deliveryFee : 15}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Free Above</span>
+                              <span className="font-black text-emerald-700 text-xs">₹{s.freeDeliveryThreshold !== undefined ? s.freeDeliveryThreshold : 199}</span>
                             </div>
                           </div>
                         </div>
@@ -1857,6 +1867,31 @@ export const AdminDashboard: React.FC = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Delivery Fee (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={customDeliveryFee}
+                    onChange={(e) => setCustomDeliveryFee(e.target.value)}
+                    placeholder="e.g. 15"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-600 font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Free Delivery Above (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={customFreeDeliveryThreshold}
+                    onChange={(e) => setCustomFreeDeliveryThreshold(e.target.value)}
+                    placeholder="e.g. 199"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-600 font-semibold"
+                  />
+                </div>
+              </div>
+
               {/* Upload image for new store icon/banner */}
               <ImageUploader
                 imageUrl={storeImage}
@@ -1957,6 +1992,29 @@ export const AdminDashboard: React.FC = () => {
                     value={storeBeingEdited.openingTime}
                     onChange={(e) => setStoreBeingEdited({ ...storeBeingEdited, openingTime: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Custom Delivery Fee (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={storeBeingEdited.deliveryFee !== undefined ? storeBeingEdited.deliveryFee : 15}
+                    onChange={(e) => setStoreBeingEdited({ ...storeBeingEdited, deliveryFee: Math.max(0, parseFloat(e.target.value) || 0) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none font-bold focus:bg-white focus:border-rose-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Free Delivery Above (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={storeBeingEdited.freeDeliveryThreshold !== undefined ? storeBeingEdited.freeDeliveryThreshold : 199}
+                    onChange={(e) => setStoreBeingEdited({ ...storeBeingEdited, freeDeliveryThreshold: Math.max(0, parseFloat(e.target.value) || 0) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none font-bold focus:bg-white focus:border-rose-600"
                   />
                 </div>
               </div>
