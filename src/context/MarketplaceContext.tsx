@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocFromServer } from 'firebase/firestore';
+import {
+  isGmailConnected,
+  sendEmailViaGmail,
+  connectGmailAccount,
+  disconnectGmail,
+  getConnectedGmailEmail,
+} from '../lib/gmailService';
+import { generateStoreOwnerOrderHtml, generateCustomerReceiptHtml } from '../lib/emailTemplates';
 
 function cleanObject(obj: any): any {
   if (obj === null || typeof obj !== 'object') {
@@ -145,6 +153,7 @@ interface MarketplaceContextType {
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
+  quickReorder: (order: Order) => { success: boolean; message: string; count: number };
   applyCoupon: (code: string) => { success: boolean; message: string };
   removeCoupon: () => void;
   getCartSubtotal: () => number;
@@ -204,6 +213,12 @@ interface MarketplaceContextType {
   // Rating & Review System
   reviews: Review[];
   addReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => void;
+
+  // Gmail OAuth Integration
+  isGmailLinked: boolean;
+  connectedGmail: string | null;
+  connectGmail: () => Promise<{ success: boolean; message: string }>;
+  disconnectGmailAccount: () => void;
 }
 
 const MarketplaceContext = createContext<MarketplaceContextType | undefined>(undefined);
@@ -645,6 +660,28 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     mediaQuery.addEventListener?.('change', handleMediaChange);
     return () => mediaQuery.removeEventListener?.('change', handleMediaChange);
   }, [themeMode]);
+
+  // Gmail OAuth Integration State
+  const [isGmailLinked, setIsGmailLinked] = useState<boolean>(() => isGmailConnected());
+  const [connectedGmail, setConnectedGmail] = useState<string | null>(() => getConnectedGmailEmail());
+
+  const connectGmail = async () => {
+    try {
+      const res = await connectGmailAccount();
+      setIsGmailLinked(true);
+      setConnectedGmail(res.user.email || 'Linked Google Account');
+      return { success: true, message: `Successfully connected Gmail account (${res.user.email})!` };
+    } catch (err: any) {
+      console.error('Failed to link Gmail:', err);
+      return { success: false, message: err?.message || 'Failed to connect Gmail account.' };
+    }
+  };
+
+  const disconnectGmailAccount = () => {
+    disconnectGmail();
+    setIsGmailLinked(false);
+    setConnectedGmail(null);
+  };
 
   // Auth functions
   const openAuthModal = (tab: 'login' | 'signup' | 'store_owner' | 'admin' = 'login') => {
@@ -1247,6 +1284,61 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setActiveCoupon(null);
   };
 
+  const quickReorder = (order: Order) => {
+    if (!order || !order.items || order.items.length === 0) {
+      return { success: false, message: 'No items in this order to reorder.', count: 0 };
+    }
+
+    const reorderedCartItems: CartItem[] = order.items.map((item) => {
+      let prod = products.find((p) => p.id === item.productId);
+      if (!prod) {
+        prod = {
+          id: item.productId || `prod_${Date.now()}_${Math.random()}`,
+          storeId: order.storeId,
+          name: item.productName || (item as any).product?.name || 'Item',
+          category: 'General',
+          price: item.price,
+          stock: 99,
+          unit: item.unit || '1 unit',
+          description: item.productName || 'Reordered item',
+          image: item.image || '/placeholder.png',
+          isAvailable: true,
+          rating: 5,
+          reviewsCount: 1,
+        };
+      }
+      return {
+        product: prod,
+        quantity: item.quantity || 1,
+      };
+    });
+
+    setCart((prevCart) => {
+      if (prevCart.length > 0 && prevCart[0].product.storeId !== order.storeId) {
+        return reorderedCartItems;
+      }
+
+      const merged = [...prevCart];
+      reorderedCartItems.forEach((newItem) => {
+        const existingIdx = merged.findIndex((c) => c.product.id === newItem.product.id);
+        if (existingIdx > -1) {
+          merged[existingIdx].quantity += newItem.quantity;
+        } else {
+          merged.push(newItem);
+        }
+      });
+      return merged;
+    });
+
+    setIsCartDrawerOpen(true);
+    const orderIdLabel = order.id.startsWith('ORD-') ? order.id : `ORD-${order.id}`;
+    return {
+      success: true,
+      message: `Items from Order #${orderIdLabel} added to your cart!`,
+      count: order.items.length,
+    };
+  };
+
   const applyCoupon = (code: string) => {
     const formatted = code.trim().toUpperCase();
     if (!formatted) {
@@ -1367,6 +1459,23 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const sendOrderEmail = async (order: Order, ownerEmail: string) => {
     try {
+      if (isGmailConnected()) {
+        const html = generateStoreOwnerOrderHtml(order);
+        const gmailRes = await sendEmailViaGmail({
+          to: ownerEmail,
+          subject: `🚨 New Order #${order.id} Received at ${order.storeName}!`,
+          htmlBody: html,
+        });
+        if (gmailRes.success) {
+          console.log('✅ Sent order email via Gmail API to shopkeeper:', ownerEmail);
+          return;
+        }
+      }
+    } catch (gErr) {
+      console.warn('Gmail API sendOrderEmail error, using backend mailer fallback:', gErr);
+    }
+
+    try {
       await fetch('/api/send-email', {
         method: 'POST',
         headers: {
@@ -1389,6 +1498,23 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const sendCustomerReceiptEmail = async (order: Order) => {
+    try {
+      if (isGmailConnected()) {
+        const html = generateCustomerReceiptHtml(order);
+        const gmailRes = await sendEmailViaGmail({
+          to: order.customerEmail,
+          subject: `✅ Order Confirmed! #${order.id} from ${order.storeName}`,
+          htmlBody: html,
+        });
+        if (gmailRes.success) {
+          console.log('✅ Sent customer receipt email via Gmail API to:', order.customerEmail);
+          return;
+        }
+      }
+    } catch (gErr) {
+      console.warn('Gmail API sendCustomerReceiptEmail error, using backend mailer fallback:', gErr);
+    }
+
     try {
       await fetch('/api/send-email', {
         method: 'POST',
@@ -2306,6 +2432,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         removeFromCart,
         updateCartQuantity,
         clearCart,
+        quickReorder,
         applyCoupon,
         removeCoupon,
         getCartSubtotal,
@@ -2343,6 +2470,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         registerFcmToken,
         toggleBanUser,
         deleteStore,
+
+        isGmailLinked,
+        connectedGmail,
+        connectGmail,
+        disconnectGmailAccount,
       }}
     >
       {children}

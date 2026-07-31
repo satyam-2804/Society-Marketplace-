@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { safeLocalStorage } from '../lib/storage';
+import { GmailConnectButton } from './GmailConnectButton';
 import {
   Building2,
   Search,
@@ -130,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({
   );
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 border-b border-slate-200 shadow-sm transition-all">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 shadow-sm transition-all">
       {/* Top Banner Notice */}
       <div className="bg-emerald-600 px-4 py-1.5 text-center text-[11px] sm:text-xs text-white font-medium flex items-center justify-center gap-2">
         <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
@@ -441,12 +442,17 @@ export const Header: React.FC<HeaderProps> = ({
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 text-slate-800"
                       >
-                        <div className="p-3 border-b border-slate-100">
-                          <p className="font-bold text-sm text-slate-900">{currentUser?.fullName || currentUser?.email || 'User'}</p>
-                          <p className="text-xs text-slate-500 truncate">{currentUser?.email || ''}</p>
-                          {currentUser?.address && (
-                            <p className="text-[11px] text-emerald-700 font-medium mt-1">{currentUser.address}</p>
-                          )}
+                        <div className="p-3 border-b border-slate-100 dark:border-slate-800 space-y-2">
+                          <div>
+                            <p className="font-bold text-sm text-slate-900 dark:text-slate-100">{currentUser?.fullName || currentUser?.email || 'User'}</p>
+                            <p className="text-xs text-slate-500 truncate">{currentUser?.email || ''}</p>
+                            {currentUser?.address && (
+                              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">{currentUser.address}</p>
+                            )}
+                          </div>
+                          <div className="pt-1">
+                            <GmailConnectButton compact />
+                          </div>
                         </div>
                         <div className="py-1 space-y-0.5">
                           {currentRole !== 'admin' && (

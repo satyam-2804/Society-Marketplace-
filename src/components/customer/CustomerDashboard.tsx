@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { safeLocalStorage } from '../../lib/storage';
+import { GmailConnectButton } from '../GmailConnectButton';
 import {
   User as UserIcon,
   ShoppingBag,
@@ -20,6 +21,7 @@ import {
   Bell,
   Smartphone,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 
 interface CustomerDashboardProps {
@@ -39,6 +41,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     updateUserProfile,
     setActiveOrderTrackId,
     openAuthModal,
+    quickReorder,
   } = useMarketplace();
 
   const [internalTab, setInternalTab] = useState<'profile' | 'orders'>(activeTab);
@@ -49,6 +52,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [newMobile, setNewMobile] = useState(currentUser?.mobile || '');
   const [newName, setNewName] = useState(currentUser?.fullName || '');
   const [avatarSuccessMsg, setAvatarSuccessMsg] = useState<string | null>(null);
+  const [reorderNotice, setReorderNotice] = useState<string | null>(null);
 
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -403,6 +407,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             )}
           </div>
 
+          {/* Gmail API Email Receipts Card */}
+          <GmailConnectButton />
+
           {/* Additional Account Information Banner */}
           <div className="bg-gradient-to-br from-slate-900 to-emerald-950 text-white rounded-3xl p-6 shadow-md space-y-3">
             <div className="flex items-center gap-2">
@@ -424,6 +431,22 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <ShoppingBag className="w-5 h-5 text-emerald-600" /> My Society Order History ({userOrders.length})
             </h3>
           </div>
+
+          {reorderNotice && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center justify-between animate-fade-in shadow-2xs">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                {reorderNotice}
+              </span>
+              <button
+                type="button"
+                onClick={() => setReorderNotice(null)}
+                className="text-emerald-700 hover:text-emerald-950 font-black text-xs px-2 py-0.5 rounded-lg hover:bg-emerald-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {userOrders.length === 0 ? (
             <div className="py-12 text-center text-slate-500 space-y-4">
@@ -465,8 +488,22 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
-                    <span className="font-black text-slate-900 text-base">₹{o.totalAmount}</span>
+                  <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto flex-wrap">
+                    <span className="font-black text-slate-900 text-base mr-1">₹{o.totalAmount}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const res = quickReorder(o);
+                        if (res.success) {
+                          setReorderNotice(res.message);
+                          setTimeout(() => setReorderNotice(null), 5000);
+                        }
+                      }}
+                      className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition-all active:scale-95"
+                      title="Reorder all items from this order into your cart"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Quick Reorder
+                    </button>
                     <button
                       type="button"
                       onClick={() => setActiveOrderTrackId(o.id)}

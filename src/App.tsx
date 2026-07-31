@@ -15,6 +15,7 @@ import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { DeliveryReceiptEmailModal } from './components/DeliveryReceiptEmailModal';
 import { AuthModal } from './components/AuthModal';
 import { BottomNav } from './components/BottomNav';
+import { ScrollToTop } from './components/ScrollToTop';
 import { CustomerDashboard } from './components/customer/CustomerDashboard';
 import { StoreOwnerDashboard } from './components/storeOwner/StoreOwnerDashboard';
 import { AdminDashboard } from './components/admin/AdminDashboard';
@@ -264,7 +265,7 @@ function MarketplaceApp() {
   // LANDING PAGE VIEW
   if (viewMode === 'landing' && !currentUser) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-emerald-500 selection:text-white">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans selection:bg-emerald-500 selection:text-white transition-colors">
         <Header
           activeView={activeView}
           setActiveView={(view) => {
@@ -294,7 +295,7 @@ function MarketplaceApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-emerald-600 selection:text-white pb-20 md:pb-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans selection:bg-emerald-600 selection:text-white pb-20 md:pb-8 transition-colors">
       {/* Top Header */}
       <Header
         activeView={activeView}
@@ -788,7 +789,7 @@ function MarketplaceApp() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-16 border-t border-slate-200 bg-white pt-12 pb-8 text-xs text-slate-500">
+      <footer className="mt-16 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pt-12 pb-8 text-xs text-slate-500 dark:text-slate-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-3">
@@ -840,12 +841,15 @@ function MarketplaceApp() {
       <DeliveryReceiptEmailModal />
       <AuthModal />
 
+      {/* Floating Scroll To Top Button */}
+      <ScrollToTop />
+
       {/* Floating Bottom Cart Bar */}
       {cart.length > 0 && !isCartDrawerOpen && !isCheckoutOpen && (
-        <div className="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-6 z-40">
+        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-6 z-40 max-w-[92vw]">
           <button
             onClick={() => setIsCartDrawerOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400/40 flex items-center gap-3 text-xs transition-all hover:scale-105"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 sm:px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400/40 flex items-center gap-2.5 sm:gap-3 text-xs transition-all hover:scale-105"
           >
             <div className="flex items-center gap-2">
               <span className="bg-emerald-800/90 px-2.5 py-1 rounded-xl text-[11px] font-black">

@@ -13,13 +13,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 backdrop-blur-md px-2 py-2 shadow-lg">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 backdrop-blur-md px-2 py-2 shadow-lg">
       <div className={`flex items-center ${currentRole === 'store_owner' ? 'justify-center' : 'justify-around'}`}>
         {currentRole !== 'store_owner' && (
           <button
             onClick={() => setActiveView('home')}
             className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
-              activeView === 'home' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
+              activeView === 'home' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Home className="w-5 h-5" />
@@ -31,7 +31,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
           <button
             onClick={() => setActiveView('stores')}
             className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
-              activeView === 'stores' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
+              activeView === 'stores' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Store className="w-5 h-5" />
@@ -42,7 +42,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
         {currentRole !== 'admin' && currentRole !== 'store_owner' && (
           <button
             onClick={() => setIsCartDrawerOpen(true)}
-            className="relative flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold text-slate-500 hover:text-slate-900"
+            className="relative flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             <div className="relative">
               <ShoppingBag className="w-5 h-5" />
@@ -60,7 +60,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
           <button
             onClick={() => setActiveView('orders')}
             className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
-              activeView === 'orders' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
+              activeView === 'orders' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Clock className="w-5 h-5" />
@@ -74,9 +74,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
             className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
               activeView === 'dashboard'
                 ? currentRole === 'admin'
-                  ? 'text-rose-700'
-                  : 'text-amber-700'
-                : 'text-slate-500 hover:text-slate-900'
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-amber-600 dark:text-amber-400'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             {currentRole === 'admin' ? <ShieldCheck className="w-5 h-5" /> : <Store className="w-5 h-5" />}
@@ -86,7 +86,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
           <button
             onClick={() => setActiveView('profile')}
             className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
-              activeView === 'profile' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
+              activeView === 'profile' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <User className="w-5 h-5" />
