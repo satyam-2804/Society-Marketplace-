@@ -188,7 +188,7 @@ export const CartDrawer: React.FC = () => {
                   </div>
 
                   {/* Coupon Section */}
-                  <div className="pt-4 border-t border-slate-100 space-y-2">
+                  <div className="pt-4 border-t border-slate-100 space-y-2.5">
                     <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Tag className="w-4 h-4 text-emerald-600" /> Apply Society Coupon
                     </p>
@@ -209,12 +209,12 @@ export const CartDrawer: React.FC = () => {
                             type="text"
                             value={couponCode}
                             onChange={(e) => setCouponCode(e.target.value)}
-                            placeholder="Enter Promo Code"
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 outline-none uppercase font-mono font-bold"
+                            placeholder="ENTER PROMO CODE"
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 outline-none uppercase font-mono font-bold placeholder:text-slate-400 focus:border-emerald-500"
                           />
                           <button
                             type="submit"
-                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-2xs transition-all"
                           >
                             Apply
                           </button>

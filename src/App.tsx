@@ -8,7 +8,6 @@ import { LandingPage } from './components/LandingPage';
 import { HeroBanner } from './components/HeroBanner';
 import { StoreCard } from './components/StoreCard';
 import { ProductCard } from './components/ProductCard';
-import { StoreReviews } from './components/StoreReviews';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { OrderConfirmationModal } from './components/OrderConfirmationModal';
@@ -134,9 +133,6 @@ function MarketplaceApp() {
     return 'home';
   });
 
-  // Sub-tab inside selected store: 'products' or 'reviews'
-  const [storeTab, setStoreTab] = useState<'products' | 'reviews'>('products');
-
   // Recent searches state
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     return safeLocalStorage.getJSON<string[]>('sm_recent_searches', []);
@@ -191,9 +187,12 @@ function MarketplaceApp() {
     prevUserRef.current = currentUserId;
   }, [currentUser, currentRole]);
 
-  // Restrict Admin and Store Owner from accessing customer personal views (orders and profile)
+  // Restrict Admin and Store Owner from accessing customer personal views and navigation
   useEffect(() => {
     if (currentRole === 'admin' && (activeView === 'orders' || activeView === 'profile')) {
+      setActiveView('dashboard');
+    }
+    if (currentRole === 'store_owner' && (activeView === 'home' || activeView === 'stores' || activeView === 'orders' || activeView === 'profile')) {
       setActiveView('dashboard');
     }
   }, [currentRole, activeView]);
@@ -310,7 +309,33 @@ function MarketplaceApp() {
         {/* VIEW: HOME */}
         {activeView === 'home' && (
           <>
-            {!selectedStore ? (
+            {!currentUser ? (
+              <div className="py-20 px-4 max-w-xl mx-auto text-center space-y-6 bg-white border border-slate-200 rounded-3xl shadow-sm my-8">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-2xl mx-auto flex items-center justify-center shadow-xs">
+                  <UserCheck className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900">Resident Customer Login Required</h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                    Please log in or register to browse society shops, explore daily essentials, and place orders inside Manokamna Apartments.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => openAuthModal('login')}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition-all"
+                  >
+                    Customer Login
+                  </button>
+                  <button
+                    onClick={() => openAuthModal('signup')}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-xs transition-all"
+                  >
+                    Register Customer
+                  </button>
+                </div>
+              </div>
+            ) : !selectedStore ? (
               /* --- HOMEPAGE MODE: Shows Hero Banner & Available Stores --- */
               <>
                 {/* Hero Banner Slider */}
@@ -374,7 +399,6 @@ function MarketplaceApp() {
                       onClick={() => {
                         setSelectedStoreId(null);
                         setSearchQuery('');
-                        setStoreTab('products');
                       }}
                       className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all flex items-center gap-2 border border-slate-200"
                     >
@@ -435,71 +459,13 @@ function MarketplaceApp() {
                             <Phone className="w-3.5 h-3.5 text-emerald-600" /> {selectedStore.ownerPhone} ({selectedStore.ownerName})
                           </span>
                         </p>
-                        
-                        {/* Rating Summary Row */}
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap text-xs">
-                          <span className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg text-amber-800 text-xs font-black shadow-3xs">
-                            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                            <span>{selectedStore.rating || '5.0'}</span>
-                          </span>
-                          <span className="text-slate-500 font-semibold bg-slate-100 border border-slate-200/60 px-2 py-1 rounded-lg">
-                            {selectedStore.reviewsCount || 0} Resident Reviews
-                          </span>
-                          <button
-                            onClick={() => setStoreTab('reviews')}
-                            className="text-emerald-700 hover:text-emerald-800 font-bold underline transition-all ml-1"
-                          >
-                            Read Reviews
-                          </button>
-                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Store View Sub-Tabs (Products Catalog vs Reviews) */}
-                <div className="flex items-center border-b border-slate-200 gap-6">
-                  <button
-                    onClick={() => setStoreTab('products')}
-                    className={`pb-3 text-sm font-extrabold transition-all relative flex items-center gap-2 px-1 ${
-                      storeTab === 'products'
-                        ? 'text-emerald-600'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Products Catalog ({filteredProducts.length})</span>
-                    {storeTab === 'products' && (
-                      <motion.div
-                        layoutId="activeStoreTabLine"
-                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600 rounded-full"
-                      />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setStoreTab('reviews')}
-                    className={`pb-3 text-sm font-extrabold transition-all relative flex items-center gap-2 px-1 ${
-                      storeTab === 'reviews'
-                        ? 'text-emerald-600'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    <span>Resident Reviews & Ratings ({selectedStore.reviewsCount || 0})</span>
-                    {storeTab === 'reviews' && (
-                      <motion.div
-                        layoutId="activeStoreTabLine"
-                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600 rounded-full"
-                      />
-                    )}
-                  </button>
-                </div>
-
-                {storeTab === 'products' ? (
-                  <>
-                    {/* Store Specific Search Bar */}
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+                {/* Store Specific Search Bar */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
                         Search Products in {selectedStore.name}:
                       </label>
@@ -662,10 +628,6 @@ function MarketplaceApp() {
                         </div>
                       )}
                     </section>
-                  </>
-                ) : (
-                  <StoreReviews storeId={selectedStore.id} />
-                )}
               </div>
             )}
 
@@ -711,46 +673,76 @@ function MarketplaceApp() {
 
         {/* VIEW: STORES */}
         {activeView === 'stores' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-black text-slate-900">All Society Outlets</h2>
-              <p className="text-xs text-slate-500 mt-1 font-medium">
-                Browse stores operating inside Manokamna Apartments (Blocks A, B, C & Clubhouse)
-              </p>
-            </div>
-
-            {isLoadingStores ? (
-              <StoreGridSkeleton count={6} />
-            ) : activeStores.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-xs">
-                <StoreIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="font-bold text-sm text-slate-800">No stores registered yet</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Store owners in Manokamna Apartments can register their outlet to list products here!
-                </p>
-                <button
-                  onClick={() => openAuthModal('store_owner')}
-                  className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs"
-                >
-                  Register Your Society Store
-                </button>
+          <>
+            {!currentUser ? (
+              <div className="py-20 px-4 max-w-xl mx-auto text-center space-y-6 bg-white border border-slate-200 rounded-3xl shadow-sm my-8">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-2xl mx-auto flex items-center justify-center shadow-xs">
+                  <UserCheck className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900">Resident Customer Login Required</h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                    Please log in or register to browse all society shops.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => openAuthModal('login')}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition-all"
+                  >
+                    Customer Login
+                  </button>
+                  <button
+                    onClick={() => openAuthModal('signup')}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-xs transition-all"
+                  >
+                    Register Customer
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activeStores.map((store) => (
-                  <StoreCard
-                    key={store.id}
-                    store={store}
-                    isSelected={selectedStoreId === store.id}
-                    onSelect={(id) => {
-                      setSelectedStoreId(id);
-                      setActiveView('home');
-                    }}
-                  />
-                ))}
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900">All Society Outlets</h2>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">
+                    Browse stores operating inside Manokamna Apartments (Blocks A, B, C & Clubhouse)
+                  </p>
+                </div>
+
+                {isLoadingStores ? (
+                  <StoreGridSkeleton count={6} />
+                ) : activeStores.length === 0 ? (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-xs">
+                    <StoreIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                    <p className="font-bold text-sm text-slate-800">No stores registered yet</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Store owners in Manokamna Apartments can register their outlet to list products here!
+                    </p>
+                    <button
+                      onClick={() => openAuthModal('store_owner')}
+                      className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs"
+                    >
+                      Register Your Society Store
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {activeStores.map((store) => (
+                      <StoreCard
+                        key={store.id}
+                        store={store}
+                        isSelected={selectedStoreId === store.id}
+                        onSelect={(id) => {
+                          setSelectedStoreId(id);
+                          setActiveView('home');
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
 
         {/* VIEW: ORDERS */}

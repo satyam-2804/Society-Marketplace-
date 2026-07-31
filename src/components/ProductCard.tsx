@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Product, Store } from '../types';
 import { useMarketplace } from '../context/MarketplaceContext';
-import { Plus, Minus, Star } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ProductCardProps {
@@ -95,20 +95,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, store }) => {
           </p>
         </div>
 
-        {/* Rating & Stock Indicator */}
-        <div className="flex items-center justify-between text-xs pt-1">
-          <div className="flex items-center gap-1 text-amber-700 font-extrabold text-[11px]">
-            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-            <span>{product.rating || 5.0}</span>
-            <span className="text-slate-400 font-normal">({product.reviewsCount || 1})</span>
-          </div>
-
-          {product.stock > 0 && product.stock <= 5 && (
+        {/* Stock Indicator */}
+        {product.stock > 0 && product.stock <= 5 && (
+          <div className="flex items-center justify-end text-xs pt-1">
             <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
               Only {product.stock} left
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Price & Action */}
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">

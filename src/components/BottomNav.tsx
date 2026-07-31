@@ -14,26 +14,30 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 backdrop-blur-md px-2 py-2 shadow-lg">
-      <div className="flex items-center justify-around">
-        <button
-          onClick={() => setActiveView('home')}
-          className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
-            activeView === 'home' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Home className="w-5 h-5" />
-          <span>Home</span>
-        </button>
+      <div className={`flex items-center ${currentRole === 'store_owner' ? 'justify-center' : 'justify-around'}`}>
+        {currentRole !== 'store_owner' && (
+          <button
+            onClick={() => setActiveView('home')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
+              activeView === 'home' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span>Home</span>
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveView('stores')}
-          className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
-            activeView === 'stores' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Store className="w-5 h-5" />
-          <span>Shops</span>
-        </button>
+        {currentRole !== 'store_owner' && (
+          <button
+            onClick={() => setActiveView('stores')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
+              activeView === 'stores' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Store className="w-5 h-5" />
+            <span>Shops</span>
+          </button>
+        )}
 
         {currentRole !== 'admin' && currentRole !== 'store_owner' && (
           <button
@@ -52,7 +56,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
           </button>
         )}
 
-        {currentRole !== 'admin' && (
+        {currentRole !== 'admin' && currentRole !== 'store_owner' && (
           <button
             onClick={() => setActiveView('orders')}
             className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-colors ${
@@ -76,7 +80,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeView, setActiveView 
             }`}
           >
             {currentRole === 'admin' ? <ShieldCheck className="w-5 h-5" /> : <Store className="w-5 h-5" />}
-            <span>{currentRole === 'admin' ? 'Admin' : 'Portal'}</span>
+            <span>{currentRole === 'admin' ? 'Admin' : 'Store Portal'}</span>
           </button>
         ) : (
           <button

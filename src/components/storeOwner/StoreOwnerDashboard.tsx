@@ -201,6 +201,7 @@ export const StoreOwnerDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'analytics' | 'settings'>('orders');
   const [orderFilterTab, setOrderFilterTab] = useState<'all' | 'pending' | 'in_progress' | 'delivered_today' | 'delivered'>('all');
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [performanceTimeline, setPerformanceTimeline] = useState<'7days' | '30days' | 'lifetime'>('7days');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   const handleStatusUpdate = (orderId: string, status: any, note: string) => {
@@ -527,29 +528,49 @@ export const StoreOwnerDashboard: React.FC = () => {
   const deliveredTodayCount = deliveredTodayOrders.length;
   const deliveredTodayRevenue = deliveredTodayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
 
-  // 7-day performance chart data for Recharts
+  // Performance chart data for Recharts (7 days, 30 days, lifetime)
   const chartData = React.useMemo(() => {
-    const daysMap: { [key: string]: { date: string; revenue: number; ordersCount: number } } = {};
-    for (let i = 6; i >= 0; i--) {
+    const daysMap: { [key: string]: { date: string; revenue: number; ordersCount: number; timestamp: number } } = {};
+    let daysCount = 7;
+    if (performanceTimeline === '30days') daysCount = 30;
+    if (performanceTimeline === 'lifetime') {
+      let earliest = Date.now();
+      storeOrders.forEach((o) => {
+        if (o.status === 'delivered') {
+          const t = new Date(o.createdAt).getTime();
+          if (t < earliest) earliest = t;
+        }
+      });
+      const diffDays = Math.ceil((Date.now() - earliest) / (1000 * 60 * 60 * 24));
+      daysCount = Math.max(14, Math.min(diffDays || 14, 90));
+    }
+
+    for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
       const fullDateKey = d.toDateString();
-      daysMap[fullDateKey] = { date: dateStr, revenue: 0, ordersCount: 0 };
+      daysMap[fullDateKey] = { date: dateStr, revenue: 0, ordersCount: 0, timestamp: new Date(fullDateKey).getTime() };
     }
 
     storeOrders.forEach((o) => {
       if (o.status === 'delivered') {
-        const oDateKey = new Date(o.createdAt).toDateString();
+        const oDate = new Date(o.createdAt);
+        const oDateKey = oDate.toDateString();
         if (daysMap[oDateKey]) {
           daysMap[oDateKey].revenue += o.totalAmount;
           daysMap[oDateKey].ordersCount += 1;
+        } else if (performanceTimeline === 'lifetime') {
+          const dateStr = oDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+          daysMap[oDateKey] = { date: dateStr, revenue: o.totalAmount, ordersCount: 1, timestamp: oDate.setHours(0,0,0,0) };
         }
       }
     });
 
-    return Object.values(daysMap);
-  }, [storeOrders]);
+    const list = Object.values(daysMap);
+    list.sort((a, b) => a.timestamp - b.timestamp);
+    return list;
+  }, [storeOrders, performanceTimeline]);
 
   // Filtered orders list based on selected filter tab and search query
   const filteredStoreOrders = storeOrders.filter((o) => {
@@ -823,42 +844,102 @@ export const StoreOwnerDashboard: React.FC = () => {
 
           {/* Daily Revenue & Total Orders Delivered Performance Chart */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs mb-8">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  <span>Sales & Delivery Performance (Last 7 Days)</span>
+                  <span>
+                    Sales & Delivery Performance ({performanceTimeline === '7days' ? 'Last 7 Days' : performanceTimeline === '30days' ? 'Last 30 Days' : 'Lifetime'})
+                  </span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Track daily revenue (₹) and delivered orders count</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Track daily revenue (₹) and delivered orders count with graphical analytics
+                </p>
               </div>
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-md bg-emerald-600"></div>
-                  <span className="text-slate-600">Daily Revenue (₹)</span>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Timeline Selector */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setPerformanceTimeline('7days')}
+                    className={`px-3 py-1 rounded-lg transition-all ${performanceTimeline === '7days' ? 'bg-white text-emerald-700 shadow-3xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    7 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPerformanceTimeline('30days')}
+                    className={`px-3 py-1 rounded-lg transition-all ${performanceTimeline === '30days' ? 'bg-white text-emerald-700 shadow-3xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    30 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPerformanceTimeline('lifetime')}
+                    className={`px-3 py-1 rounded-lg transition-all ${performanceTimeline === 'lifetime' ? 'bg-white text-emerald-700 shadow-3xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    Lifetime
+                  </button>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-md bg-amber-500"></div>
-                  <span className="text-slate-600">Delivered Orders</span>
+
+                <div className="flex items-center gap-3 text-xs font-bold">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-md bg-emerald-600"></div>
+                    <span className="text-slate-600">Revenue (₹)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-md bg-amber-500"></div>
+                    <span className="text-slate-600">Orders</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="h-64 w-full">
+            {/* Graphical Summary Mini-Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Period Revenue</span>
+                <p className="text-base font-black text-emerald-700 mt-0.5">
+                  ₹{chartData.reduce((s, d) => s + d.revenue, 0).toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Delivered Orders</span>
+                <p className="text-base font-black text-amber-600 mt-0.5">
+                  {chartData.reduce((s, d) => s + d.ordersCount, 0)} orders
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Daily Average</span>
+                <p className="text-base font-black text-slate-900 mt-0.5">
+                  ₹{chartData.length > 0 ? Math.round(chartData.reduce((s, d) => s + d.revenue, 0) / chartData.length).toLocaleString('en-IN') : 0} <span className="text-xs font-normal text-slate-500">/ day</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis yAxisId="left" stroke="#059669" fontSize={11} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#d97706" fontSize={11} tickLine={false} />
+                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#059669" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#059669" stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="date" stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+                  <YAxis yAxisId="left" stroke="#059669" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val}`} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#d97706" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}`} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold' }}
+                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)', fontSize: '12px', fontWeight: 'bold', padding: '12px 16px' }}
                     formatter={(value: any, name: string) => [
-                      name === 'revenue' ? `₹${value}` : `${value} orders`,
+                      name === 'revenue' ? `₹${value.toLocaleString('en-IN')}` : `${value} orders`,
                       name === 'revenue' ? 'Daily Revenue' : 'Delivered Orders'
                     ]}
                   />
-                  <Bar yAxisId="left" dataKey="revenue" fill="#059669" radius={[6, 6, 0, 0]} barSize={28} name="revenue" />
-                  <Line yAxisId="right" type="monotone" dataKey="ordersCount" stroke="#d97706" strokeWidth={3} dot={{ r: 4, fill: '#d97706' }} name="ordersCount" />
+                  <Bar yAxisId="left" dataKey="revenue" fill="#059669" radius={[8, 8, 0, 0]} barSize={performanceTimeline === '30days' ? 14 : 26} name="revenue" opacity={0.85} />
+                  <Line yAxisId="right" type="monotone" dataKey="ordersCount" stroke="#d97706" strokeWidth={3} dot={{ r: 5, fill: '#d97706', strokeWidth: 2, stroke: '#ffffff' }} activeDot={{ r: 7, stroke: '#d97706', strokeWidth: 2, fill: '#ffffff' }} name="ordersCount" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -1161,7 +1242,13 @@ export const StoreOwnerDashboard: React.FC = () => {
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>
                       <h4 className="font-bold text-xs text-slate-900 truncate">{p.name}</h4>
-                      <p className="text-[11px] text-slate-500 font-medium">{p.unit}</p>
+                      <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                        <span>{p.unit}</span>
+                        <span>•</span>
+                        <strong className={p.stock > 0 ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
+                          Stock: {p.stock} units
+                        </strong>
+                      </p>
                       <p className="text-sm font-black text-emerald-700 mt-1">₹{p.price}</p>
                     </div>
 
@@ -1449,6 +1536,22 @@ export const StoreOwnerDashboard: React.FC = () => {
                     />
                   </div>
                 )}
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Stock Quantity (Units) *</label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  placeholder="e.g. 50"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:border-amber-600 outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Stock decreases automatically as orders are placed. Becomes out of stock when 0.
+                </p>
               </div>
 
               <ImageUploader

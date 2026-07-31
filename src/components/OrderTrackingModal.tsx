@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { OrderStatus } from '../types';
-import { X, CheckCircle2, Truck, Store, Phone } from 'lucide-react';
+import { X, CheckCircle2, Truck, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
 
 const STATUS_STEPS: { status: OrderStatus; label: string; desc: string }[] = [
   { status: 'pending', label: 'Order Placed', desc: 'Sent to store owner' },
@@ -14,6 +15,21 @@ const STATUS_STEPS: { status: OrderStatus; label: string; desc: string }[] = [
 
 export const OrderTrackingModal: React.FC = () => {
   const { activeOrderTrackId, setActiveOrderTrackId, orders, stores } = useMarketplace();
+
+  useEffect(() => {
+    if (activeOrderTrackId) {
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 80,
+          origin: { y: 0.5 },
+          zIndex: 100,
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [activeOrderTrackId]);
 
   if (!activeOrderTrackId) return null;
 
@@ -41,6 +57,8 @@ export const OrderTrackingModal: React.FC = () => {
 
   const currentIndex = getStepIndex(order.status);
 
+  const formattedOrderId = order.id.startsWith('ORD-') ? order.id : `ORD-${order.id}`;
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
@@ -53,23 +71,24 @@ export const OrderTrackingModal: React.FC = () => {
           {/* Close button */}
           <button
             onClick={() => setActiveOrderTrackId(null)}
-            className="absolute top-5 right-5 p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+            className="absolute top-5 right-5 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold">
-              <Truck className="w-5 h-5" />
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl font-bold border border-emerald-100 shrink-0">
+              <Truck className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-900">Track Order #{order.id}</h3>
-              <p className="text-xs text-slate-500 font-semibold">{order.storeName}</p>
+              <h3 className="text-lg font-black text-slate-900">Track Order #{formattedOrderId}</h3>
+              <p className="text-xs text-slate-500 font-semibold">{order.storeName || store?.name || 'Society Shop'}</p>
             </div>
           </div>
 
-          {/* Stepper */}
-          <div className="my-6 space-y-4 relative pl-4 border-l-2 border-slate-200 ml-2">
+          {/* Stepper Timeline */}
+          <div className="my-6 space-y-6 relative pl-6 border-l-2 border-slate-200 ml-3">
             {STATUS_STEPS.map((step, idx) => {
               const isDone = idx <= currentIndex;
               const isCurrent = idx === currentIndex;
@@ -77,47 +96,46 @@ export const OrderTrackingModal: React.FC = () => {
               return (
                 <div key={step.status} className="relative flex items-start gap-3">
                   <div
-                    className={`absolute -left-[23px] top-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                    className={`absolute -left-[33px] top-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
                       isDone
-                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'bg-white border-slate-300'
+                        ? 'bg-emerald-600 border-2 border-emerald-600 text-white shadow-3xs'
+                        : 'bg-white border-2 border-slate-300'
                     }`}
                   >
-                    {isDone && <CheckCircle2 className="w-3 h-3 stroke-[3]" />}
+                    {isDone && <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />}
                   </div>
 
                   <div>
                     <h4
-                      className={`text-xs font-bold ${
-                        isCurrent ? 'text-emerald-700 font-extrabold text-sm' : isDone ? 'text-slate-900' : 'text-slate-400'
+                      className={`text-xs font-black ${
+                        isDone ? 'text-emerald-700' : 'text-slate-400'
                       }`}
                     >
                       {step.label}
                     </h4>
-                    <p className="text-[11px] text-slate-500 font-medium">{step.desc}</p>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">{step.desc}</p>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Contact Details */}
-          {store && (
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-              <div>
-                <p className="font-bold text-slate-900">{store.name}</p>
-                <p className="text-[11px] text-slate-500">{store.blockLocation}</p>
-              </div>
-              <a
-                href={`tel:${store.ownerPhone}`}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1"
-              >
-                <Phone className="w-3.5 h-3.5" /> Call Shop
-              </a>
+          {/* Bottom Store Contact Card */}
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 flex items-center justify-between text-xs mt-6">
+            <div>
+              <p className="font-extrabold text-slate-900 text-sm">{store?.name || order.storeName}</p>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">{store?.blockLocation || 'B7/22 Pocket-1'}</p>
             </div>
-          )}
+            <a
+              href={`tel:${store?.ownerPhone || '+919811122334'}`}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-all"
+            >
+              <Phone className="w-3.5 h-3.5" /> Call Shop
+            </a>
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>
   );
 };
+

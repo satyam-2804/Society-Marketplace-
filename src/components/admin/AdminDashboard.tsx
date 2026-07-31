@@ -752,11 +752,6 @@ export const AdminDashboard: React.FC = () => {
                             <span className="font-extrabold text-slate-800 text-sm">{storeProductsList.length} items</span>
                             <span className="text-[9px] text-slate-400 block font-semibold">In stock: {storeProductsList.filter(p => p.stock > 0).length}</span>
                           </div>
-                          <div>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block font-bold">Feedback</span>
-                            <span className="font-extrabold text-slate-800 text-sm">★ {s.rating || '5.0'}</span>
-                            <span className="text-[9px] text-slate-400 block font-semibold">{s.reviewsCount || 0} reviews</span>
-                          </div>
                         </div>
 
                         {/* Visual sales share meter */}

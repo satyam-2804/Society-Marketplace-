@@ -1,6 +1,6 @@
 import React from 'react';
 import { Store } from '../types';
-import { MapPin, Star, Clock, ShoppingBag, Tag } from 'lucide-react';
+import { MapPin, Clock, ShoppingBag, Tag } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface StoreCardProps {
@@ -53,18 +53,11 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, isSelected, onSelec
 
       {/* Body Content */}
       <div className="p-4 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h4 className="font-bold text-sm sm:text-base text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1">
-              {store.name}
-            </h4>
-            <p className="text-xs text-slate-500 line-clamp-1 font-medium">{store.category}</p>
-          </div>
-
-          <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-extrabold shrink-0">
-            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-            <span>{store.rating || 5.0}</span>
-          </div>
+        <div>
+          <h4 className="font-bold text-sm sm:text-base text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1">
+            {store.name}
+          </h4>
+          <p className="text-xs text-slate-500 line-clamp-1 font-medium">{store.category}</p>
         </div>
 
         {/* Store Metadata */}

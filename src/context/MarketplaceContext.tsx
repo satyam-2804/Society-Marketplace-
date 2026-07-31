@@ -37,6 +37,20 @@ const safeSetDoc = (docRef: any, data: any, options?: any) => {
   });
 };
 
+const safeDeleteDoc = (docRef: any) => {
+  if (hasQuotaError) return Promise.resolve();
+  return deleteDoc(docRef).catch((err) => {
+    if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
+      if (!hasQuotaError) {
+        hasQuotaError = true;
+        console.warn('Firestore quota exceeded. Running in high-performance local storage fallback mode.');
+      }
+    } else {
+      console.warn('safeDeleteDoc warning:', err);
+    }
+  });
+};
+
 import { safeLocalStorage, safeToLower } from '../lib/storage';
 
 import {
@@ -205,7 +219,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    return safeLocalStorage.getJSON<User | null>('sm_current_user', null);
+    const saved = safeLocalStorage.getJSON<User | null>('sm_current_user', null);
+    return saved;
   });
 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
@@ -329,22 +344,26 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // 1. Users snapshot listener
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const list: User[] = [];
+      const cloudList: User[] = [];
       snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as User);
+        cloudList.push({ id: docSnap.id, ...docSnap.data() } as User);
       });
-      if (snapshot.empty) {
-        INITIAL_USERS.forEach((u) => {
-          safeSetDoc(doc(db, 'users', u.id), u);
+      setUsers((prevLocal) => {
+        const merged = [...cloudList];
+        prevLocal.forEach((localUser) => {
+          if (!merged.some((u) => u.id === localUser.id)) {
+            merged.push(localUser);
+            safeSetDoc(doc(db, 'users', localUser.id), localUser);
+          }
         });
-      } else {
-        const hasAdmin = (users || []).some((u) => u && safeToLower(u.email) === 'satyam443355@gmail.com');
+        const hasAdmin = merged.some((u) => u && safeToLower(u.email) === 'satyam443355@gmail.com');
         if (!hasAdmin) {
           const adminUser = INITIAL_USERS[0];
+          merged.push(adminUser);
           safeSetDoc(doc(db, 'users', adminUser.id), adminUser);
         }
-        setUsers(list);
-      }
+        return merged;
+      });
       checkLoaded();
     }, (err) => {
       if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
@@ -357,17 +376,20 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // 2. Stores snapshot listener
     const unsubscribeStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
-      const list: Store[] = [];
+      const cloudList: Store[] = [];
       snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as Store);
+        cloudList.push({ id: docSnap.id, ...docSnap.data() } as Store);
       });
-      if (snapshot.empty) {
-        INITIAL_STORES.forEach((s) => {
-          safeSetDoc(doc(db, 'stores', s.id), s);
+      setStores((prevLocal) => {
+        const merged = [...cloudList];
+        prevLocal.forEach((localStore) => {
+          if (!merged.some((s) => s.id === localStore.id)) {
+            merged.push(localStore);
+            safeSetDoc(doc(db, 'stores', localStore.id), localStore);
+          }
         });
-      } else {
-        setStores(list);
-      }
+        return merged;
+      });
       setIsLoadingStores(false);
       checkLoaded();
     }, (err) => {
@@ -382,17 +404,20 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // 3. Products snapshot listener
     const unsubscribeProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      const list: Product[] = [];
+      const cloudList: Product[] = [];
       snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as Product);
+        cloudList.push({ id: docSnap.id, ...docSnap.data() } as Product);
       });
-      if (snapshot.empty) {
-        INITIAL_PRODUCTS.forEach((p) => {
-          safeSetDoc(doc(db, 'products', p.id), p);
+      setProducts((prevLocal) => {
+        const merged = [...cloudList];
+        prevLocal.forEach((localProd) => {
+          if (!merged.some((p) => p.id === localProd.id)) {
+            merged.push(localProd);
+            safeSetDoc(doc(db, 'products', localProd.id), localProd);
+          }
         });
-      } else {
-        setProducts(list);
-      }
+        return merged;
+      });
       setIsLoadingProducts(false);
       checkLoaded();
     }, (err) => {
@@ -407,12 +432,21 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // 4. Orders snapshot listener
     const unsubscribeOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
-      const list: Order[] = [];
+      const cloudList: Order[] = [];
       snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as Order);
+        cloudList.push({ id: docSnap.id, ...docSnap.data() } as Order);
       });
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setOrders(list);
+      setOrders((prevLocal) => {
+        const merged = [...cloudList];
+        prevLocal.forEach((localOrder) => {
+          if (!merged.some((o) => o.id === localOrder.id)) {
+            merged.push(localOrder);
+            safeSetDoc(doc(db, 'orders', localOrder.id), localOrder);
+          }
+        });
+        merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return merged;
+      });
       checkLoaded();
     }, (err) => {
       if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
@@ -508,33 +542,28 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Sync local currentUser with Firestore users array whenever cloud users update
   useEffect(() => {
-    if (users.length > 0) {
-      if (currentUser) {
-        const cloudUser = (users || []).find(
-          (u) => u && (u.id === currentUser.id || (u.email && currentUser?.email && safeToLower(u.email) === safeToLower(currentUser.email)))
-        );
-        if (cloudUser && JSON.stringify(cloudUser) !== JSON.stringify(currentUser)) {
-          setCurrentUser(cloudUser);
-        }
-      } else {
-        const savedRaw = localStorage.getItem('sm_current_user');
-        if (savedRaw) {
-          try {
-            const savedObj = JSON.parse(savedRaw);
-            if (savedObj && savedObj.id) {
-              const matchedCloudUser = (users || []).find(
-                (u) => u && (u.id === savedObj.id || (u.email && savedObj.email && safeToLower(u.email) === safeToLower(savedObj.email)))
-              );
-              if (matchedCloudUser) {
-                setCurrentUser(matchedCloudUser);
-              } else {
-                setCurrentUser(savedObj);
-              }
-            }
-          } catch (e) {
-            console.error("Error parsing saved user:", e);
+    if (!currentUser) {
+      const savedRaw = localStorage.getItem('sm_current_user');
+      if (savedRaw) {
+        try {
+          const savedObj = JSON.parse(savedRaw);
+          if (savedObj && savedObj.id) {
+            setCurrentUser(savedObj);
+            safeSetDoc(doc(db, 'users', savedObj.id), savedObj);
           }
+        } catch (e) {
+          console.error("Error parsing saved user:", e);
         }
+      }
+    } else if (users.length > 0) {
+      const cloudUser = (users || []).find(
+        (u) => u && (u.id === currentUser.id || (u.email && currentUser?.email && safeToLower(u.email) === safeToLower(currentUser.email)))
+      );
+      if (cloudUser && JSON.stringify(cloudUser) !== JSON.stringify(currentUser)) {
+        setCurrentUser(cloudUser);
+      } else if (!cloudUser && currentUser) {
+        // Ensure local currentUser is synced to cloud if not present in list yet
+        safeSetDoc(doc(db, 'users', currentUser.id), currentUser);
       }
     }
   }, [users]);
@@ -658,6 +687,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       setCurrentUser(adminUser);
       setCurrentRole('admin');
+      safeSetDoc(doc(db, 'users', adminUser.id), adminUser);
+      safeLocalStorage.setItem('sm_current_user', JSON.stringify(adminUser));
       setIsAuthModalOpen(false);
       setIsAdminTester(true);
       safeLocalStorage.setItem('isAdminTester', 'true');
@@ -692,6 +723,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     setCurrentUser(foundUser);
     setCurrentRole(foundUser.role);
+    safeSetDoc(doc(db, 'users', foundUser.id), foundUser);
+    safeLocalStorage.setItem('sm_current_user', JSON.stringify(foundUser));
     setIsAuthModalOpen(false);
     setIsAdminTester(false);
     safeLocalStorage.removeItem('isAdminTester');
@@ -719,6 +752,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     safeSetDoc(doc(db, 'users', newUser.id), newUser);
     setCurrentUser(newUser);
     setCurrentRole('customer');
+    safeLocalStorage.setItem('sm_current_user', JSON.stringify(newUser));
     setIsAuthModalOpen(false);
     return { success: true, message: 'Account created successfully! Welcome to Society Marketplace.' };
   };
@@ -1112,12 +1146,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setActiveCoupon(null);
     setIsAdminTester(false);
     safeLocalStorage.removeItem('isAdminTester');
+    safeLocalStorage.removeItem('sm_current_user');
   };
 
   const switchRoleQuick = (role: UserRole, storeId?: string) => {
     if (role === 'guest') {
       setCurrentUser(null);
       setCurrentRole('guest');
+      safeLocalStorage.removeItem('sm_current_user');
       return;
     }
 
@@ -1132,8 +1168,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
     }
 
-    setCurrentUser(targetUser);
-    setCurrentRole(targetUser.role);
+    if (targetUser) {
+      setCurrentUser(targetUser);
+      setCurrentRole(targetUser.role);
+      safeSetDoc(doc(db, 'users', targetUser.id), targetUser);
+      safeLocalStorage.setItem('sm_current_user', JSON.stringify(targetUser));
+    }
   };
 
   const updateUserProfile = (data: Partial<User>) => {
@@ -1531,7 +1571,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     cart.forEach((item) => {
       const p = products.find((prod) => prod.id === item.product.id);
       if (p) {
-        safeSetDoc(doc(db, 'products', p.id), { stock: Math.max(0, p.stock - item.quantity) }, { merge: true });
+        const newStock = Math.max(0, p.stock - item.quantity);
+        const updateData: Partial<Product> = {
+          stock: newStock,
+          isAvailable: newStock > 0 ? p.isAvailable : false,
+        };
+        safeSetDoc(doc(db, 'products', p.id), updateData, { merge: true });
       }
     });
 
@@ -1889,18 +1934,20 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const clearAllStores = () => {
     stores.forEach((s) => {
-      deleteDoc(doc(db, 'stores', s.id));
+      safeDeleteDoc(doc(db, 'stores', s.id));
     });
     products.forEach((p) => {
-      deleteDoc(doc(db, 'products', p.id));
+      safeDeleteDoc(doc(db, 'products', p.id));
     });
   };
 
   // Store Owner CRUD
   const addProduct = (data: Omit<Product, 'id' | 'rating' | 'reviewsCount'>) => {
     const id = 'prod_' + Date.now();
+    const isAvail = (data.stock ?? 1) > 0 ? (data.isAvailable ?? true) : false;
     const newProd: Product = {
       ...data,
+      isAvailable: isAvail,
       id,
       rating: 5.0,
       reviewsCount: 1,
@@ -1912,17 +1959,19 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const editProduct = (productId: string, data: Partial<Product>) => {
-    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, ...data } : p)));
-    safeSetDoc(doc(db, 'products', productId), data, { merge: true }).catch((err) =>
+    const updateData = { ...data };
+    if (updateData.stock !== undefined && updateData.stock <= 0) {
+      updateData.isAvailable = false;
+    }
+    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, ...updateData } : p)));
+    safeSetDoc(doc(db, 'products', productId), updateData, { merge: true }).catch((err) =>
       console.error(`Error editing product ${productId} in Firestore:`, err)
     );
   };
 
   const deleteProduct = (productId: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
-    deleteDoc(doc(db, 'products', productId)).catch((err) =>
-      console.error(`Error deleting product ${productId} from Firestore:`, err)
-    );
+    safeDeleteDoc(doc(db, 'products', productId));
   };
 
   const toggleProductStock = (productId: string) => {
@@ -2078,10 +2127,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const deleteStore = (storeId: string) => {
-    deleteDoc(doc(db, 'stores', storeId));
+    safeDeleteDoc(doc(db, 'stores', storeId));
     products.forEach((p) => {
       if (p.storeId === storeId) {
-        deleteDoc(doc(db, 'products', p.id));
+        safeDeleteDoc(doc(db, 'products', p.id));
       }
     });
   };

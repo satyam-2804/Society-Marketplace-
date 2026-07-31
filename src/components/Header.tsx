@@ -107,7 +107,18 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const unreadNotifs = notifications.filter((n) => !n.isRead && (n.userId === 'all' || n.userId === currentUser?.id));
+
+  // Filter notifications strictly by role and user ID
+  const userNotifications = notifications.filter((n) => {
+    if (currentRole === 'admin') return true;
+    if (currentRole === 'store_owner') {
+      return n.userId === currentUser?.id || n.userId === 'all';
+    }
+    // Customer / Guest
+    return n.userId === currentUser?.id || n.userId === 'all';
+  });
+
+  const unreadNotifs = userNotifications.filter((n) => !n.isRead);
 
   // Check active active orders
   const activeOrder = orders.find(
@@ -181,7 +192,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Brand Logo & Location */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
-              onClick={() => setActiveView('home')}
+              onClick={() => setActiveView(currentRole === 'store_owner' ? 'dashboard' : 'home')}
               className="flex items-center gap-2 text-left group"
             >
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform shrink-0">
@@ -290,8 +301,27 @@ export const Header: React.FC<HeaderProps> = ({
                       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                         <h4 className="text-sm font-bold flex items-center gap-2 text-slate-900">
                           <Bell className="w-4 h-4 text-emerald-600" /> Notifications
+                          {unreadNotifs.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-extrabold">
+                              {unreadNotifs.length} new
+                            </span>
+                          )}
                         </h4>
-                        <span className="text-xs text-slate-500 font-medium">{notifications.length} total</span>
+                        <div className="flex items-center gap-2">
+                          {unreadNotifs.length > 0 && (
+                            <button
+                              onClick={() => {
+                                userNotifications.forEach((n) => {
+                                  if (!n.isRead) markNotificationAsRead(n.id);
+                                });
+                              }}
+                              className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
+                            >
+                              Mark all read
+                            </button>
+                          )}
+                          <span className="text-xs text-slate-400 font-medium">{userNotifications.length}</span>
+                        </div>
                       </div>
 
                       {/* Push Notification Opt-in Toggle inside Popover */}
@@ -325,26 +355,39 @@ export const Header: React.FC<HeaderProps> = ({
                       </div>
 
                       <div className="max-h-80 overflow-y-auto space-y-2 mt-3 pr-1">
-                        {notifications.length === 0 ? (
-                          <p className="text-xs text-slate-400 text-center py-6">No notifications yet</p>
+                        {userNotifications.length === 0 ? (
+                          <div className="text-center py-8">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
+                              <Bell className="w-5 h-5" />
+                            </div>
+                            <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              {currentRole === 'store_owner'
+                                ? 'You will receive instant alerts here when residents place orders at your shop.'
+                                : 'You will receive real-time order status updates here.'}
+                            </p>
+                          </div>
                         ) : (
-                          notifications.map((n) => (
+                          userNotifications.map((n) => (
                             <div
                               key={n.id}
                               onClick={() => markNotificationAsRead(n.id)}
-                              className={`p-3 rounded-xl border transition-colors cursor-pointer text-xs ${
+                              className={`p-3 rounded-xl border transition-all cursor-pointer text-xs ${
                                 !n.isRead
-                                  ? 'bg-emerald-50/70 border-emerald-200 text-slate-800'
-                                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                                  ? 'bg-emerald-50/80 border-emerald-200 text-slate-900 shadow-xs'
+                                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100/80'
                               }`}
                             >
                               <div className="flex items-start justify-between gap-2">
-                                <p className="font-semibold text-slate-900 text-xs">{n.title}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`w-2 h-2 rounded-full ${!n.isRead ? 'bg-emerald-600 animate-pulse' : 'bg-slate-300'}`} />
+                                  <p className="font-bold text-slate-900 text-xs">{n.title}</p>
+                                </div>
                                 <span className="text-[10px] text-slate-400 shrink-0">
                                   {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
-                              <p className="mt-1 text-slate-600 leading-relaxed text-[11px]">{n.message}</p>
+                              <p className="mt-1 text-slate-600 leading-relaxed text-[11px] pl-3.5">{n.message}</p>
                             </div>
                           ))
                         )}
