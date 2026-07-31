@@ -255,6 +255,190 @@ export const StoreOwnerDashboard: React.FC = () => {
        (s.ownerPhone && currentUser?.mobile && s.ownerPhone.replace(/\D/g, '') === currentUser.mobile.replace(/\D/g, '')))
   );
 
+  // Filter products and orders belonging STRICTLY to this store
+  const storeProducts = store ? products.filter((p) => p.storeId === store.id) : [];
+  const storeOrders = store ? orders.filter((o) => o.storeId === store.id) : [];
+
+  // Sales analytics for this store
+  const totalStoreSales = storeOrders
+    .filter((o) => o.status !== 'rejected' && o.status !== 'cancelled')
+    .reduce((sum, o) => sum + o.totalAmount, 0);
+
+  const pendingOrders = storeOrders.filter((o) => o.status === 'pending');
+  const inProgressOrders = storeOrders.filter(
+    (o) => o.status === 'accepted' || o.status === 'preparing' || o.status === 'out_for_delivery'
+  );
+  const allDeliveredOrders = storeOrders.filter((o) => o.status === 'delivered');
+
+  const prevPendingCountRef = useRef(pendingOrders.length);
+
+  const playOrderRingtoneSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      // Phone order notification ringtone (two cycles of E5-G#5-B5-E6)
+      const ringNotes = [
+        { freq: 659.25, start: 0, duration: 0.15 },    // E5
+        { freq: 830.61, start: 0.15, duration: 0.15 },  // G#5
+        { freq: 987.77, start: 0.30, duration: 0.15 },  // B5
+        { freq: 1318.51, start: 0.45, duration: 0.35 }, // E6
+        { freq: 659.25, start: 0.90, duration: 0.15 },  // E5
+        { freq: 830.61, start: 1.05, duration: 0.15 },  // G#5
+        { freq: 987.77, start: 1.20, duration: 0.15 },  // B5
+        { freq: 1318.51, start: 1.35, duration: 0.40 }, // E6
+      ];
+
+      ringNotes.forEach((note) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(note.freq, ctx.currentTime + note.start);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime + note.start);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note.start + note.duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + note.start);
+        osc.stop(ctx.currentTime + note.start + note.duration);
+      });
+    } catch (err) {
+      console.warn("Audio chime playback error:", err);
+    }
+  };
+
+  const requestPushPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          setPushEnabled(true);
+          if (currentUser?.id) {
+            registerFcmToken(currentUser.id);
+          }
+          playOrderRingtoneSound();
+          if (store) {
+            const testNotif = new Notification(`🔔 Phone Order Alerts Activated - ${store.name}`, {
+              body: `Permission granted! You will now receive instant phone notifications with sound whenever a customer places an order!`,
+              icon: store.image || '/icon-192.png',
+              badge: '/icon-192.png',
+              requireInteraction: true,
+              tag: 'order-alert-setup',
+              vibrate: [300, 100, 300, 100, 400],
+            } as any);
+            testNotif.onclick = () => {
+              window.focus();
+              testNotif.close();
+            };
+          }
+        } else if (perm === 'denied') {
+          alert("Notification permission was denied. Please allow notifications in your device/site settings to receive instant order alerts on your phone.");
+        }
+      } catch (err) {
+        console.error("Push permission error:", err);
+      }
+    } else {
+      alert("Browser/Device notification API is not supported on this browser.");
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.id && !currentUser.fcmToken && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      registerFcmToken(currentUser.id);
+    }
+  }, [currentUser?.id, currentUser?.fcmToken]);
+
+  useEffect(() => {
+    if (!store) return;
+    if (pendingOrders.length > prevPendingCountRef.current) {
+      const latestOrder = pendingOrders[0];
+
+      // Trigger Web Push Notification for phone notification panel
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        const notifTitle = `🚨 New Customer Order Received! (${store.name})`;
+        const notifBody = latestOrder
+          ? `Order Amount: ₹${latestOrder.totalAmount} • Customer: ${latestOrder.customerName}\nAddress: ${latestOrder.deliveryAddress}\nTap to view and accept order!`
+          : `You received a new order for ${store.name}. Tap to view and accept immediately!`;
+
+        try {
+          const orderNotif = new Notification(notifTitle, {
+            body: notifBody,
+            icon: store.image || '/icon-192.png',
+            badge: '/icon-192.png',
+            requireInteraction: true,
+            renotify: true,
+            tag: `store-order-${latestOrder?.id || Date.now()}`,
+            vibrate: [300, 100, 300, 100, 500],
+          } as any);
+
+          orderNotif.onclick = () => {
+            window.focus();
+            orderNotif.close();
+          };
+        } catch (e) {
+          console.error("Order notification error:", e);
+        }
+      }
+
+      // Play phone ringtone sound
+      playOrderRingtoneSound();
+    }
+    prevPendingCountRef.current = pendingOrders.length;
+  }, [pendingOrders.length, store?.name, store?.image]);
+
+  // Today's delivered orders calculation
+  const todayDateStr = new Date().toDateString();
+  const deliveredTodayOrders = storeOrders.filter(
+    (o) => o.status === 'delivered' && new Date(o.createdAt).toDateString() === todayDateStr
+  );
+  const deliveredTodayCount = deliveredTodayOrders.length;
+  const deliveredTodayRevenue = deliveredTodayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+  // Performance chart data for Recharts (7 days, 30 days, lifetime)
+  const chartData = React.useMemo(() => {
+    if (!store) return [];
+    const daysMap: { [key: string]: { date: string; revenue: number; ordersCount: number; timestamp: number } } = {};
+    let daysCount = 7;
+    if (performanceTimeline === '30days') daysCount = 30;
+    if (performanceTimeline === 'lifetime') {
+      let earliest = Date.now();
+      storeOrders.forEach((o) => {
+        if (o.status === 'delivered') {
+          const t = new Date(o.createdAt).getTime();
+          if (t < earliest) earliest = t;
+        }
+      });
+      const diffDays = Math.ceil((Date.now() - earliest) / (1000 * 60 * 60 * 24));
+      daysCount = Math.max(14, Math.min(diffDays || 14, 90));
+    }
+
+    for (let i = daysCount - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      const fullDateKey = d.toDateString();
+      daysMap[fullDateKey] = { date: dateStr, revenue: 0, ordersCount: 0, timestamp: new Date(fullDateKey).getTime() };
+    }
+
+    storeOrders.forEach((o) => {
+      if (o.status === 'delivered') {
+        const oDate = new Date(o.createdAt);
+        const oDateKey = oDate.toDateString();
+        if (daysMap[oDateKey]) {
+          daysMap[oDateKey].revenue += o.totalAmount;
+          daysMap[oDateKey].ordersCount += 1;
+        } else if (performanceTimeline === 'lifetime') {
+          const dateStr = oDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+          daysMap[oDateKey] = { date: dateStr, revenue: o.totalAmount, ordersCount: 1, timestamp: oDate.setHours(0,0,0,0) };
+        }
+      }
+    });
+
+    const list = Object.values(daysMap);
+    list.sort((a, b) => a.timestamp - b.timestamp);
+    return list;
+  }, [storeOrders, performanceTimeline, store]);
+
   // If stores are currently loading from cloud Firestore, show loading indicator
   if (isLoadingStores) {
     return (
@@ -392,186 +576,6 @@ export const StoreOwnerDashboard: React.FC = () => {
       </div>
     );
   }
-
-  // Filter products and orders belonging STRICTLY to this store
-  const storeProducts = products.filter((p) => p.storeId === store.id);
-  const storeOrders = orders.filter((o) => o.storeId === store.id);
-
-  // Sales analytics for this store
-  const totalStoreSales = storeOrders
-    .filter((o) => o.status !== 'rejected' && o.status !== 'cancelled')
-    .reduce((sum, o) => sum + o.totalAmount, 0);
-
-  const pendingOrders = storeOrders.filter((o) => o.status === 'pending');
-  const inProgressOrders = storeOrders.filter(
-    (o) => o.status === 'accepted' || o.status === 'preparing' || o.status === 'out_for_delivery'
-  );
-  const allDeliveredOrders = storeOrders.filter((o) => o.status === 'delivered');
-
-  const prevPendingCountRef = useRef(pendingOrders.length);
-
-  const playOrderRingtoneSound = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-
-      // Phone order notification ringtone (two cycles of E5-G#5-B5-E6)
-      const ringNotes = [
-        { freq: 659.25, start: 0, duration: 0.15 },    // E5
-        { freq: 830.61, start: 0.15, duration: 0.15 },  // G#5
-        { freq: 987.77, start: 0.30, duration: 0.15 },  // B5
-        { freq: 1318.51, start: 0.45, duration: 0.35 }, // E6
-        { freq: 659.25, start: 0.90, duration: 0.15 },  // E5
-        { freq: 830.61, start: 1.05, duration: 0.15 },  // G#5
-        { freq: 987.77, start: 1.20, duration: 0.15 },  // B5
-        { freq: 1318.51, start: 1.35, duration: 0.40 }, // E6
-      ];
-
-      ringNotes.forEach((note) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(note.freq, ctx.currentTime + note.start);
-        gain.gain.setValueAtTime(0.5, ctx.currentTime + note.start);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note.start + note.duration);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + note.start);
-        osc.stop(ctx.currentTime + note.start + note.duration);
-      });
-    } catch (err) {
-      console.warn("Audio chime playback error:", err);
-    }
-  };
-
-  const requestPushPermission = async () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      try {
-        const perm = await Notification.requestPermission();
-        if (perm === 'granted') {
-          setPushEnabled(true);
-          if (currentUser?.id) {
-            registerFcmToken(currentUser.id);
-          }
-          playOrderRingtoneSound();
-          const testNotif = new Notification(`🔔 Phone Order Alerts Activated - ${store.name}`, {
-            body: `Permission granted! You will now receive instant phone notifications with sound whenever a customer places an order!`,
-            icon: store.image || '/icon-192.png',
-            badge: '/icon-192.png',
-            requireInteraction: true,
-            tag: 'order-alert-setup',
-            vibrate: [300, 100, 300, 100, 400],
-          } as any);
-          testNotif.onclick = () => {
-            window.focus();
-            testNotif.close();
-          };
-        } else if (perm === 'denied') {
-          alert("Notification permission was denied. Please allow notifications in your device/site settings to receive instant order alerts on your phone.");
-        }
-      } catch (err) {
-        console.error("Push permission error:", err);
-      }
-    } else {
-      alert("Browser/Device notification API is not supported on this browser.");
-    }
-  };
-
-  useEffect(() => {
-    if (currentUser?.id && !currentUser.fcmToken && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      registerFcmToken(currentUser.id);
-    }
-  }, [currentUser?.id, currentUser?.fcmToken]);
-
-  useEffect(() => {
-    if (pendingOrders.length > prevPendingCountRef.current) {
-      const latestOrder = pendingOrders[0];
-
-      // Trigger Web Push Notification for phone notification panel
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        const notifTitle = `🚨 New Customer Order Received! (${store.name})`;
-        const notifBody = latestOrder
-          ? `Order Amount: ₹${latestOrder.totalAmount} • Customer: ${latestOrder.customerName}\nAddress: ${latestOrder.deliveryAddress}\nTap to view and accept order!`
-          : `You received a new order for ${store.name}. Tap to view and accept immediately!`;
-
-        try {
-          const orderNotif = new Notification(notifTitle, {
-            body: notifBody,
-            icon: store.image || '/icon-192.png',
-            badge: '/icon-192.png',
-            requireInteraction: true,
-            renotify: true,
-            tag: `store-order-${latestOrder?.id || Date.now()}`,
-            vibrate: [300, 100, 300, 100, 500],
-          } as any);
-
-          orderNotif.onclick = () => {
-            window.focus();
-            orderNotif.close();
-          };
-        } catch (e) {
-          console.error("Order notification error:", e);
-        }
-      }
-
-      // Play phone ringtone sound
-      playOrderRingtoneSound();
-    }
-    prevPendingCountRef.current = pendingOrders.length;
-  }, [pendingOrders.length, store.name, store.image]);
-
-  // Today's delivered orders calculation
-  const todayDateStr = new Date().toDateString();
-  const deliveredTodayOrders = storeOrders.filter(
-    (o) => o.status === 'delivered' && new Date(o.createdAt).toDateString() === todayDateStr
-  );
-  const deliveredTodayCount = deliveredTodayOrders.length;
-  const deliveredTodayRevenue = deliveredTodayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-
-  // Performance chart data for Recharts (7 days, 30 days, lifetime)
-  const chartData = React.useMemo(() => {
-    const daysMap: { [key: string]: { date: string; revenue: number; ordersCount: number; timestamp: number } } = {};
-    let daysCount = 7;
-    if (performanceTimeline === '30days') daysCount = 30;
-    if (performanceTimeline === 'lifetime') {
-      let earliest = Date.now();
-      storeOrders.forEach((o) => {
-        if (o.status === 'delivered') {
-          const t = new Date(o.createdAt).getTime();
-          if (t < earliest) earliest = t;
-        }
-      });
-      const diffDays = Math.ceil((Date.now() - earliest) / (1000 * 60 * 60 * 24));
-      daysCount = Math.max(14, Math.min(diffDays || 14, 90));
-    }
-
-    for (let i = daysCount - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-      const fullDateKey = d.toDateString();
-      daysMap[fullDateKey] = { date: dateStr, revenue: 0, ordersCount: 0, timestamp: new Date(fullDateKey).getTime() };
-    }
-
-    storeOrders.forEach((o) => {
-      if (o.status === 'delivered') {
-        const oDate = new Date(o.createdAt);
-        const oDateKey = oDate.toDateString();
-        if (daysMap[oDateKey]) {
-          daysMap[oDateKey].revenue += o.totalAmount;
-          daysMap[oDateKey].ordersCount += 1;
-        } else if (performanceTimeline === 'lifetime') {
-          const dateStr = oDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-          daysMap[oDateKey] = { date: dateStr, revenue: o.totalAmount, ordersCount: 1, timestamp: oDate.setHours(0,0,0,0) };
-        }
-      }
-    });
-
-    const list = Object.values(daysMap);
-    list.sort((a, b) => a.timestamp - b.timestamp);
-    return list;
-  }, [storeOrders, performanceTimeline]);
 
   // Filtered orders list based on selected filter tab and search query
   const filteredStoreOrders = storeOrders.filter((o) => {
