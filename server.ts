@@ -149,7 +149,6 @@ app.post("/api/state", (req, res) => {
 // SMTP Email Notification service
 let emailTransporter: nodemailer.Transporter | null = null;
 let isSmtpVerified = false;
-let verifyPromise: Promise<void> | null = null;
 
 function getEmailTransporter() {
   const host = process.env.SMTP_HOST;
@@ -176,25 +175,15 @@ function getEmailTransporter() {
       },
     });
 
-    verifyPromise = new Promise((resolve) => {
-      emailTransporter!.verify(function(error, success) {
-        if (error) {
-          console.warn("⚠️ SMTP connection failed (Invalid credentials or network issue). Falling back to Simulated Console Email Log.", error.message);
-          emailTransporter = null;
-          isSmtpVerified = false;
-        } else {
-          console.log("✅ SMTP server is ready to send emails.");
-          isSmtpVerified = true;
-        }
-        resolve();
-      });
-    });
+    // Don't verify eagerly to prevent crashing or angry error logs.
+    // If it fails during sending, we catch it later.
+    isSmtpVerified = true;
   }
 
   return isSmtpVerified ? emailTransporter : null;
 }
 
-// Call once on startup to verify if configured
+// Call once on startup
 getEmailTransporter();
 
 app.post("/api/send-email", async (req, res) => {
