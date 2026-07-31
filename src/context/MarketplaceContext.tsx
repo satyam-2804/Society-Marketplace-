@@ -363,22 +363,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       snapshot.forEach((docSnap) => {
         cloudList.push({ id: docSnap.id, ...docSnap.data() } as User);
       });
-      setUsers((prevLocal) => {
-        const merged = [...cloudList];
-        prevLocal.forEach((localUser) => {
-          if (!merged.some((u) => u.id === localUser.id)) {
-            merged.push(localUser);
-            safeSetDoc(doc(db, 'users', localUser.id), localUser);
-          }
+      if (snapshot.empty) {
+        INITIAL_USERS.forEach((u) => {
+          safeSetDoc(doc(db, 'users', u.id), u);
         });
-        const hasAdmin = merged.some((u) => u && safeToLower(u.email) === 'satyam443355@gmail.com');
-        if (!hasAdmin) {
-          const adminUser = INITIAL_USERS[0];
-          merged.push(adminUser);
-          safeSetDoc(doc(db, 'users', adminUser.id), adminUser);
-        }
-        return merged;
-      });
+        setUsers(INITIAL_USERS);
+      } else {
+        setUsers(cloudList);
+      }
       checkLoaded();
     }, (err) => {
       if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
@@ -395,16 +387,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       snapshot.forEach((docSnap) => {
         cloudList.push({ id: docSnap.id, ...docSnap.data() } as Store);
       });
-      setStores((prevLocal) => {
-        const merged = [...cloudList];
-        prevLocal.forEach((localStore) => {
-          if (!merged.some((s) => s.id === localStore.id)) {
-            merged.push(localStore);
-            safeSetDoc(doc(db, 'stores', localStore.id), localStore);
-          }
+      if (snapshot.empty) {
+        INITIAL_STORES.forEach((s) => {
+          safeSetDoc(doc(db, 'stores', s.id), s);
         });
-        return merged;
-      });
+        setStores(INITIAL_STORES);
+      } else {
+        setStores(cloudList);
+      }
       setIsLoadingStores(false);
       checkLoaded();
     }, (err) => {
@@ -423,16 +413,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       snapshot.forEach((docSnap) => {
         cloudList.push({ id: docSnap.id, ...docSnap.data() } as Product);
       });
-      setProducts((prevLocal) => {
-        const merged = [...cloudList];
-        prevLocal.forEach((localProd) => {
-          if (!merged.some((p) => p.id === localProd.id)) {
-            merged.push(localProd);
-            safeSetDoc(doc(db, 'products', localProd.id), localProd);
-          }
+      if (snapshot.empty) {
+        INITIAL_PRODUCTS.forEach((p) => {
+          safeSetDoc(doc(db, 'products', p.id), p);
         });
-        return merged;
-      });
+        setProducts(INITIAL_PRODUCTS);
+      } else {
+        setProducts(cloudList);
+      }
       setIsLoadingProducts(false);
       checkLoaded();
     }, (err) => {
@@ -451,17 +439,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       snapshot.forEach((docSnap) => {
         cloudList.push({ id: docSnap.id, ...docSnap.data() } as Order);
       });
-      setOrders((prevLocal) => {
-        const merged = [...cloudList];
-        prevLocal.forEach((localOrder) => {
-          if (!merged.some((o) => o.id === localOrder.id)) {
-            merged.push(localOrder);
-            safeSetDoc(doc(db, 'orders', localOrder.id), localOrder);
-          }
-        });
-        merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        return merged;
-      });
+      cloudList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOrders(cloudList);
       checkLoaded();
     }, (err) => {
       if (err?.message?.includes('Quota exceeded') || err?.code === 'resource-exhausted') {
@@ -558,13 +537,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Sync local currentUser with Firestore users array whenever cloud users update
   useEffect(() => {
     if (!currentUser) {
-      const savedRaw = localStorage.getItem('sm_current_user');
+      const savedRaw = safeLocalStorage.getItem('sm_current_user');
       if (savedRaw) {
         try {
           const savedObj = JSON.parse(savedRaw);
           if (savedObj && savedObj.id) {
             setCurrentUser(savedObj);
-            safeSetDoc(doc(db, 'users', savedObj.id), savedObj);
           }
         } catch (e) {
           console.error("Error parsing saved user:", e);
@@ -574,14 +552,23 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const cloudUser = (users || []).find(
         (u) => u && (u.id === currentUser.id || (u.email && currentUser?.email && safeToLower(u.email) === safeToLower(currentUser.email)))
       );
-      if (cloudUser && JSON.stringify(cloudUser) !== JSON.stringify(currentUser)) {
-        setCurrentUser(cloudUser);
-      } else if (!cloudUser && currentUser) {
-        // Ensure local currentUser is synced to cloud if not present in list yet
-        safeSetDoc(doc(db, 'users', currentUser.id), currentUser);
+      if (cloudUser) {
+        const isDifferent =
+          cloudUser.role !== currentUser.role ||
+          cloudUser.email !== currentUser.email ||
+          cloudUser.fullName !== currentUser.fullName ||
+          cloudUser.mobile !== currentUser.mobile ||
+          cloudUser.address !== currentUser.address ||
+          cloudUser.storeId !== currentUser.storeId ||
+          cloudUser.fcmToken !== currentUser.fcmToken ||
+          cloudUser.isBanned !== currentUser.isBanned;
+
+        if (isDifferent) {
+          setCurrentUser(cloudUser);
+        }
       }
     }
-  }, [users]);
+  }, [users, currentUser?.id]);
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -1588,8 +1575,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const { messaging } = await import('../lib/firebase');
       const { getToken } = await import('firebase/messaging');
 
+      const simToken = 'fcm_simulated_' + userId;
+
       if (!messaging) {
-        const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
+        if (currentUser?.fcmToken === simToken) return;
         await safeSetDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
         return;
       }
@@ -1603,6 +1592,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           });
 
           if (token) {
+            if (currentUser?.fcmToken === token) return;
             await safeSetDoc(doc(db, 'users', userId), { fcmToken: token }, { merge: true });
             console.log("FCM Token registered successfully:", token);
           } else {
@@ -1610,11 +1600,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
         } catch (tokenErr) {
           console.warn("FCM getToken failed, utilizing simulated FCM token:", tokenErr);
-          const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
+          if (currentUser?.fcmToken === simToken) return;
           await safeSetDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
         }
       } else {
-        const simToken = 'fcm_simulated_' + userId + '_' + Date.now();
+        if (currentUser?.fcmToken === simToken) return;
         await safeSetDoc(doc(db, 'users', userId), { fcmToken: simToken }, { merge: true });
       }
     } catch (err) {
@@ -2301,9 +2291,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     if (!currentUser || notifications.length === 0) return;
 
-    // Get the most recent unread notification for this user
+    // Get the most recent unread notification for this user (strictly personalized)
     const myUnread = notifications.filter(
-      (n) => (n.userId === currentUser.id || n.userId === 'all') && !n.isRead
+      (n) => n.userId === currentUser.id && !n.isRead
     );
 
     if (myUnread.length === 0) return;
@@ -2373,10 +2363,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [notifications, currentUser, lastNotifiedId]);
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser?.id && !currentUser.fcmToken) {
       registerFcmToken(currentUser.id);
     }
-  }, [currentUser]);
+  }, [currentUser?.id, currentUser?.fcmToken]);
 
   return (
     <MarketplaceContext.Provider

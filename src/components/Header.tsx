@@ -109,14 +109,11 @@ export const Header: React.FC<HeaderProps> = ({
 
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Filter notifications strictly by role and user ID
+  // Filter notifications strictly by role and user ID (strictly personalized)
   const userNotifications = notifications.filter((n) => {
-    if (currentRole === 'admin') return true;
-    if (currentRole === 'store_owner') {
-      return n.userId === currentUser?.id || n.userId === 'all';
-    }
-    // Customer / Guest
-    return n.userId === currentUser?.id || n.userId === 'all';
+    if (currentRole === 'admin') return false;
+    if (!currentUser?.id) return false;
+    return n.userId === currentUser.id;
   });
 
   const unreadNotifs = userNotifications.filter((n) => !n.isRead);
@@ -141,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* In-App Push Notification Opt-In Banner */}
-      {showPushBanner && (
+      {showPushBanner && currentRole !== 'admin' && (
         <div className="bg-slate-900 text-white px-3 sm:px-4 py-2 border-b border-slate-800 flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 truncate">
             <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
@@ -193,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Brand Logo & Location */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
-              onClick={() => setActiveView(currentRole === 'store_owner' ? 'dashboard' : 'home')}
+              onClick={() => setActiveView('home')}
               className="flex items-center gap-2 text-left group"
             >
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform shrink-0">
@@ -273,134 +270,136 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Notification Bell */}
-            <div className="relative shrink-0">
-              <button
-                onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="p-2 sm:p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors relative flex items-center justify-center"
-                aria-label="Notifications"
-              >
-                <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-                {unreadNotifs.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
-                    {unreadNotifs.length}
-                  </span>
-                )}
-              </button>
+            {/* Notification Bell (Hidden for Admin) */}
+            {currentRole !== 'admin' && (
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setIsNotifOpen(!isNotifOpen)}
+                  className="p-2 sm:p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors relative flex items-center justify-center"
+                  aria-label="Notifications"
+                >
+                  <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                  {unreadNotifs.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                      {unreadNotifs.length}
+                    </span>
+                  )}
+                </button>
 
-              {/* Notification Popover */}
-              <AnimatePresence>
-                {isNotifOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsNotifOpen(false)} />
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-50 text-slate-800"
-                    >
-                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                        <h4 className="text-sm font-bold flex items-center gap-2 text-slate-900">
-                          <Bell className="w-4 h-4 text-emerald-600" /> Notifications
-                          {unreadNotifs.length > 0 && (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-extrabold">
-                              {unreadNotifs.length} new
-                            </span>
-                          )}
-                        </h4>
-                        <div className="flex items-center gap-2">
-                          {unreadNotifs.length > 0 && (
-                            <button
-                              onClick={() => {
-                                userNotifications.forEach((n) => {
-                                  if (!n.isRead) markNotificationAsRead(n.id);
-                                });
-                              }}
-                              className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
-                            >
-                              Mark all read
-                            </button>
-                          )}
-                          <span className="text-xs text-slate-400 font-medium">{userNotifications.length}</span>
-                        </div>
-                      </div>
-
-                      {/* Push Notification Opt-in Toggle inside Popover */}
-                      <div className="my-2.5 p-3 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl flex items-center justify-between gap-3 shadow-sm">
-                        <div className="space-y-0.5">
-                          <p className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
-                            <Smartphone className="w-3.5 h-3.5 text-emerald-400" /> Order Updates Push Alerts
-                          </p>
-                          <p className="text-[10px] text-slate-300 leading-tight">
-                            {isPushEnabled
-                              ? 'Live order status push notifications are active.'
-                              : 'Enable push alerts for instant doorstep updates.'}
-                          </p>
+                {/* Notification Popover */}
+                <AnimatePresence>
+                  {isNotifOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsNotifOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-50 text-slate-800"
+                      >
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <h4 className="text-sm font-bold flex items-center gap-2 text-slate-900">
+                            <Bell className="w-4 h-4 text-emerald-600" /> Notifications
+                            {unreadNotifs.length > 0 && (
+                              <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-extrabold">
+                                {unreadNotifs.length} new
+                              </span>
+                            )}
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            {unreadNotifs.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  userNotifications.forEach((n) => {
+                                    if (!n.isRead) markNotificationAsRead(n.id);
+                                  });
+                                }}
+                                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
+                              >
+                                Mark all read
+                              </button>
+                            )}
+                            <span className="text-xs text-slate-400 font-medium">{userNotifications.length}</span>
+                          </div>
                         </div>
 
-                        <button
-                          onClick={() => handleTogglePush(!isPushEnabled)}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            isPushEnabled ? 'bg-emerald-500' : 'bg-slate-600'
-                          }`}
-                          role="switch"
-                          aria-checked={isPushEnabled}
-                          title="Toggle Push Notifications"
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                              isPushEnabled ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      <div className="max-h-80 overflow-y-auto space-y-2 mt-3 pr-1">
-                        {userNotifications.length === 0 ? (
-                          <div className="text-center py-8">
-                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
-                              <Bell className="w-5 h-5" />
-                            </div>
-                            <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              {currentRole === 'store_owner'
-                                ? 'You will receive instant alerts here when residents place orders at your shop.'
-                                : 'You will receive real-time order status updates here.'}
+                        {/* Push Notification Opt-in Toggle inside Popover */}
+                        <div className="my-2.5 p-3 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl flex items-center justify-between gap-3 shadow-sm">
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                              <Smartphone className="w-3.5 h-3.5 text-emerald-400" /> Order Updates Push Alerts
+                            </p>
+                            <p className="text-[10px] text-slate-300 leading-tight">
+                              {isPushEnabled
+                                ? 'Live order status push notifications are active.'
+                                : 'Enable push alerts for instant doorstep updates.'}
                             </p>
                           </div>
-                        ) : (
-                          userNotifications.map((n) => (
-                            <div
-                              key={n.id}
-                              onClick={() => markNotificationAsRead(n.id)}
-                              className={`p-3 rounded-xl border transition-all cursor-pointer text-xs ${
-                                !n.isRead
-                                  ? 'bg-emerald-50/80 border-emerald-200 text-slate-900 shadow-xs'
-                                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100/80'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={`w-2 h-2 rounded-full ${!n.isRead ? 'bg-emerald-600 animate-pulse' : 'bg-slate-300'}`} />
-                                  <p className="font-bold text-slate-900 text-xs">{n.title}</p>
-                                </div>
-                                <span className="text-[10px] text-slate-400 shrink-0">
-                                  {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-slate-600 leading-relaxed text-[11px] pl-3.5">{n.message}</p>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
 
-            {/* Shopping Cart Drawer Trigger (Only for Customers / Guests) */}
-            {currentRole !== 'admin' && currentRole !== 'store_owner' && (
+                          <button
+                            onClick={() => handleTogglePush(!isPushEnabled)}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isPushEnabled ? 'bg-emerald-500' : 'bg-slate-600'
+                            }`}
+                            role="switch"
+                            aria-checked={isPushEnabled}
+                            title="Toggle Push Notifications"
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                isPushEnabled ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="max-h-80 overflow-y-auto space-y-2 mt-3 pr-1">
+                          {userNotifications.length === 0 ? (
+                            <div className="text-center py-8">
+                              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
+                                <Bell className="w-5 h-5" />
+                              </div>
+                              <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {currentRole === 'store_owner'
+                                  ? 'You will receive instant alerts here when residents place orders at your shop.'
+                                  : 'You will receive real-time order status updates here.'}
+                              </p>
+                            </div>
+                          ) : (
+                            userNotifications.map((n) => (
+                              <div
+                                key={n.id}
+                                onClick={() => markNotificationAsRead(n.id)}
+                                className={`p-3 rounded-xl border transition-all cursor-pointer text-xs ${
+                                  !n.isRead
+                                    ? 'bg-emerald-50/80 border-emerald-200 text-slate-900 shadow-xs'
+                                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100/80'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`w-2 h-2 rounded-full ${!n.isRead ? 'bg-emerald-600 animate-pulse' : 'bg-slate-300'}`} />
+                                    <p className="font-bold text-slate-900 text-xs">{n.title}</p>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 shrink-0">
+                                    {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-slate-600 leading-relaxed text-[11px] pl-3.5">{n.message}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Shopping Cart Drawer Trigger (Only for Logged-In Customers) */}
+            {currentUser && currentRole !== 'admin' && currentRole !== 'store_owner' && (
               <button
                 onClick={() => setIsCartDrawerOpen(true)}
                 className="relative p-2 sm:px-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all active:scale-95 flex items-center gap-1 sm:gap-1.5 shrink-0"

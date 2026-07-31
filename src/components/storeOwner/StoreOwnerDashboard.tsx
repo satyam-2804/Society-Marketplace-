@@ -479,10 +479,10 @@ export const StoreOwnerDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentUser?.id && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    if (currentUser?.id && !currentUser.fcmToken && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       registerFcmToken(currentUser.id);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.fcmToken]);
 
   useEffect(() => {
     if (pendingOrders.length > prevPendingCountRef.current) {
