@@ -148,6 +148,8 @@ app.post("/api/state", (req, res) => {
 
 // SMTP Email Notification service
 let emailTransporter: nodemailer.Transporter | null = null;
+let isSmtpVerified = false;
+let verifyPromise: Promise<void> | null = null;
 
 function getEmailTransporter() {
   const host = process.env.SMTP_HOST;
@@ -156,7 +158,10 @@ function getEmailTransporter() {
   const pass = process.env.SMTP_PASS;
 
   if (!host || !user || !pass) {
-    console.warn("⚠️ SMTP environment variables are not fully configured. Email notifications will be logged to the server console.");
+    if (!emailTransporter) {
+      console.warn("⚠️ SMTP environment variables are not fully configured. Email notifications will be logged to the server console.");
+      emailTransporter = null;
+    }
     return null;
   }
 
@@ -170,9 +175,27 @@ function getEmailTransporter() {
         pass,
       },
     });
+
+    verifyPromise = new Promise((resolve) => {
+      emailTransporter!.verify(function(error, success) {
+        if (error) {
+          console.warn("⚠️ SMTP connection failed (Invalid credentials or network issue). Falling back to Simulated Console Email Log.", error.message);
+          emailTransporter = null;
+          isSmtpVerified = false;
+        } else {
+          console.log("✅ SMTP server is ready to send emails.");
+          isSmtpVerified = true;
+        }
+        resolve();
+      });
+    });
   }
-  return emailTransporter;
+
+  return isSmtpVerified ? emailTransporter : null;
 }
+
+// Call once on startup to verify if configured
+getEmailTransporter();
 
 app.post("/api/send-email", async (req, res) => {
   const {
@@ -195,7 +218,11 @@ app.post("/api/send-email", async (req, res) => {
 
   let subject = `🚨 New Order #${orderId} Received at ${storeName}!`;
   if (statusUpdate) {
-    subject = `🔔 Order #${orderId} Update from ${storeName}: ${status.toUpperCase()}`;
+    if (status && status.toLowerCase() === 'delivered') {
+      subject = `🎉 Order Delivered! Thank You for Shopping with ${storeName}`;
+    } else {
+      subject = `🔔 Order #${orderId} Update from ${storeName}: ${status ? status.toUpperCase() : 'UPDATED'}`;
+    }
   } else if (customerReceipt) {
     subject = `✅ Order Confirmed! #${orderId} from ${storeName}`;
   }
@@ -203,20 +230,81 @@ app.post("/api/send-email", async (req, res) => {
   let htmlContent = "";
 
   if (statusUpdate) {
-    htmlContent = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
-        <h2 style="color: #4f46e5; margin-bottom: 20px;">Order Status Updated</h2>
-        <p>Dear Customer,</p>
-        <p>Your order <strong>#${orderId}</strong> from <strong>${storeName}</strong> has been updated to:</p>
-        <div style="background-color: #f3f4f6; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 1.1em; text-align: center; color: #1e1b4b; text-transform: uppercase; margin: 20px 0;">
-          ${status.replace('_', ' ')}
+    const isDelivered = status && status.toLowerCase() === 'delivered';
+    const itemsListHtml = Array.isArray(items)
+      ? items
+          .map(
+            (item: any) =>
+              `<tr>
+                <td style="padding: 8px; border-bottom: 1px solid #edf2f7;">${item.productName || item.name}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #edf2f7; text-align: center;">${item.quantity}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #edf2f7; text-align: right;">₹${item.price}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #edf2f7; text-align: right;">₹${item.price * item.quantity}</td>
+              </tr>`
+          )
+          .join("")
+      : "";
+
+    if (isDelivered) {
+      htmlContent = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+          <h2 style="color: #059669; margin-bottom: 20px;">🎉 Order Delivered Successfully!</h2>
+          <p>Dear <strong>${customerName || 'Customer'}</strong>,</p>
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+            <p style="margin: 0 0 6px 0; font-size: 15px; color: #047857; font-weight: bold;">
+              ❤️ Thank you for shopping with us at Manokamna Apartments Society Marketplace!
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #166534;">
+              We are delighted to confirm that your order <strong>#${orderId}</strong> from <strong>${storeName}</strong> has been successfully delivered to <strong>${deliveryAddress}</strong>.
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; border-left: 4px solid #059669; padding: 12px; margin: 15px 0;">
+            <p style="margin: 0 0 4px 0;"><strong>Order ID:</strong> #${orderId}</p>
+            <p style="margin: 0 0 4px 0;"><strong>Store:</strong> ${storeName}</p>
+            <p style="margin: 0 0 4px 0;"><strong>Delivery Address:</strong> ${deliveryAddress}</p>
+            <p style="margin: 0;"><strong>Status:</strong> DELIVERED ✅</p>
+          </div>
+          ${itemsListHtml ? `
+          <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+            <thead>
+              <tr style="background-color: #f1f5f9;">
+                <th style="padding: 8px; text-align: left;">Item</th>
+                <th style="padding: 8px; text-align: center;">Qty</th>
+                <th style="padding: 8px; text-align: right;">Price</th>
+                <th style="padding: 8px; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsListHtml}
+            </tbody>
+            <tfoot>
+              <tr style="font-weight: bold; font-size: 1.1em;">
+                <td colspan="3" style="padding: 12px 8px 8px 8px; text-align: right;">Total Amount Paid:</td>
+                <td style="padding: 12px 8px 8px 8px; text-align: right; color: #059669;">₹${totalAmount}</td>
+              </tr>
+            </tfoot>
+          </table>
+          ` : `<p><strong>Total Amount Paid:</strong> ₹${totalAmount}</p>`}
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 0.9em; color: #666; text-align: center;">Thank you for shopping local with Manokamna Apartments Marketplace!</p>
         </div>
-        <p><strong>Total Amount:</strong> ₹${totalAmount}</p>
-        <p><strong>Delivery Address:</strong> ${deliveryAddress}</p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-        <p style="font-size: 0.9em; color: #666; text-align: center;">Thank you for shopping with us!</p>
-      </div>
-    `;
+      `;
+    } else {
+      htmlContent = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+          <h2 style="color: #4f46e5; margin-bottom: 20px;">Order Status Updated</h2>
+          <p>Dear Customer,</p>
+          <p>Your order <strong>#${orderId}</strong> from <strong>${storeName}</strong> has been updated to:</p>
+          <div style="background-color: #f3f4f6; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 1.1em; text-align: center; color: #1e1b4b; text-transform: uppercase; margin: 20px 0;">
+            ${status ? status.replace('_', ' ') : 'UPDATED'}
+          </div>
+          <p><strong>Total Amount:</strong> ₹${totalAmount}</p>
+          <p><strong>Delivery Address:</strong> ${deliveryAddress}</p>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 0.9em; color: #666; text-align: center;">Thank you for shopping with us!</p>
+        </div>
+      `;
+    }
   } else if (customerReceipt) {
     const itemsListHtml = Array.isArray(items)
       ? items

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { safeToLower } from '../lib/storage';
-import { GmailConnectButton } from './GmailConnectButton';
 import { X, MapPin, Phone, User, QrCode, CreditCard, Banknote, Clock, ArrowRight, ShieldCheck, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -194,15 +193,6 @@ export const CheckoutModal: React.FC = () => {
                 placeholder="e.g., Leave at flat door / Don't ring bell"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
               />
-            </div>
-
-            {/* Gmail Receipt Notification Status */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
-              <div className="text-[11px] text-slate-600 dark:text-slate-300">
-                <p className="font-bold">Email Order Receipt</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Directly sent to customer & shop owner via Gmail API</p>
-              </div>
-              <GmailConnectButton compact />
             </div>
 
             {/* Total Summary */}

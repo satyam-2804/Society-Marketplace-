@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { ProductGridSkeleton } from '../skeletons/ProductCardSkeleton';
-import { GmailConnectButton } from '../GmailConnectButton';
 import { Product, OrderStatus } from '../../types';
 import { safeToLower } from '../../lib/storage';
 import {
@@ -1372,10 +1371,6 @@ export const StoreOwnerDashboard: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* Gmail Integration Card for Store Alerts */}
-          <GmailConnectButton />
-
         </div>
       )}
         </>

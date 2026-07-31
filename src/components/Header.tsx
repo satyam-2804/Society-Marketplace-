@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { safeLocalStorage } from '../lib/storage';
-import { GmailConnectButton } from './GmailConnectButton';
 import {
   Building2,
   Search,
@@ -448,9 +447,6 @@ export const Header: React.FC<HeaderProps> = ({
                             {currentUser?.address && (
                               <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">{currentUser.address}</p>
                             )}
-                          </div>
-                          <div className="pt-1">
-                            <GmailConnectButton compact />
                           </div>
                         </div>
                         <div className="py-1 space-y-0.5">

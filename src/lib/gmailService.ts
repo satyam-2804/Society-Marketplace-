@@ -110,18 +110,18 @@ export async function sendEmailViaGmail({
   }
 
   try {
-    const fromHeader = connectedUserEmail ? `From: ${connectedUserEmail}\r\n` : '';
-    const rawRfc2822 = [
+    const fromHeader = connectedUserEmail ? `From: ${connectedUserEmail}` : null;
+    const utf8SubjectBase64 = btoa(unescape(encodeURIComponent(subject)));
+    
+    const headers = [
       `To: ${to}`,
       fromHeader,
-      `Subject: =?utf-8?B?${btoa(encodeURIComponent(subject).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))))}?=`,
+      `Subject: =?UTF-8?B?${utf8SubjectBase64}?=`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=utf-8',
-      '',
-      htmlBody,
-    ]
-      .filter(Boolean)
-      .join('\r\n');
+    ].filter(Boolean);
+
+    const rawRfc2822 = headers.join('\r\n') + '\r\n\r\n' + htmlBody;
 
     const encodedRaw = encodeRawEmail(rawRfc2822);
 

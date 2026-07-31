@@ -8,7 +8,7 @@ import {
   disconnectGmail,
   getConnectedGmailEmail,
 } from '../lib/gmailService';
-import { generateStoreOwnerOrderHtml, generateCustomerReceiptHtml } from '../lib/emailTemplates';
+import { generateStoreOwnerOrderHtml, generateCustomerReceiptHtml, generateCustomerStatusUpdateHtml } from '../lib/emailTemplates';
 
 function cleanObject(obj: any): any {
   if (obj === null || typeof obj !== 'object') {
@@ -1527,6 +1527,28 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const sendStatusEmail = async (order: Order, status: string) => {
     try {
+      if (isGmailConnected() && order.customerEmail) {
+        const html = generateCustomerStatusUpdateHtml(order, status);
+        const isDelivered = status.toLowerCase() === 'delivered';
+        const subject = isDelivered
+          ? `🎉 Order Delivered! Thank You from ${order.storeName}`
+          : `🔔 Order #${order.id} Status Update: ${status.replace('_', ' ').toUpperCase()}`;
+
+        const gmailRes = await sendEmailViaGmail({
+          to: order.customerEmail,
+          subject,
+          htmlBody: html,
+        });
+        if (gmailRes.success) {
+          console.log('✅ Sent status update email via Gmail API to:', order.customerEmail);
+          return;
+        }
+      }
+    } catch (gErr) {
+      console.warn('Gmail API sendStatusEmail error, falling back to backend:', gErr);
+    }
+
+    try {
       await fetch('/api/send-email', {
         method: 'POST',
         headers: {
@@ -1538,6 +1560,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           customerName: order.customerName,
           customerMobile: order.customerMobile,
           deliveryAddress: order.deliveryAddress,
+          items: order.items,
           totalAmount: order.totalAmount,
           storeName: order.storeName,
           statusUpdate: true,
