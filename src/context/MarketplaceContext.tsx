@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { db } from '../lib/firebase';
 import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import {
@@ -208,6 +209,7 @@ interface MarketplaceContextType {
   markNotificationAsRead: (notificationId: string) => void;
   registerFcmToken: (userId: string) => Promise<void>;
   toggleBanUser: (userId: string) => void;
+  deleteUserAccount: (userId: string) => void;
   deleteStore: (storeId: string) => void;
 
   // Rating & Review System
@@ -1641,6 +1643,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     paymentMethod: 'cod' | 'upi' | 'card',
     notes?: string
   ) => {
+    if (currentUser?.isBanned) {
+      return { success: false, message: 'Your account has been banned from the society marketplace. You cannot place orders.' };
+    }
+
     if (cart.length === 0) {
       return { success: false, message: 'Your cart is empty!' };
     }
@@ -2265,10 +2271,32 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  const deleteUserAccount = (userId: string) => {
+    // Delete stores owned by this user
+    stores.filter((s) => s.ownerId === userId).forEach((store) => {
+      deleteStore(store.id);
+    });
+    
+    // Optimistic update
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+
+    // Delete user
+    safeDeleteDoc(doc(db, 'users', userId));
+    
+    // If the logged in user is deleting themselves
+    if (currentUser?.id === userId) {
+      setTimeout(() => logout(), 0);
+    }
+  };
+
   const deleteStore = (storeId: string) => {
+    // Optimistic update
+    setStores((prev) => prev.filter((s) => s.id !== storeId));
+
     safeDeleteDoc(doc(db, 'stores', storeId));
     products.forEach((p) => {
       if (p.storeId === storeId) {
+        setProducts((prev) => prev.filter((prod) => prod.id !== p.id));
         safeDeleteDoc(doc(db, 'products', p.id));
       }
     });
@@ -2330,7 +2358,21 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const ageMs = Date.now() - new Date(latest.timestamp).getTime();
     if (ageMs > 15000) return;
 
+    // Update last notified to prevent repeat
     setLastNotifiedId(latest.id);
+
+    // Trigger toast notification
+    if (latest.type === 'order') {
+      if (latest.title.toLowerCase().includes('accepted') || latest.title.toLowerCase().includes('success')) {
+        toast.success(latest.title, { description: latest.message });
+      } else if (latest.title.toLowerCase().includes('rejected') || latest.title.toLowerCase().includes('cancelled') || latest.title.toLowerCase().includes('declined')) {
+        toast.error(latest.title, { description: latest.message });
+      } else {
+        toast.info(latest.title, { description: latest.message });
+      }
+    } else {
+      toast(latest.title, { description: latest.message });
+    }
 
     // Play sound chime
     try {
@@ -2482,6 +2524,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         markNotificationAsRead,
         registerFcmToken,
         toggleBanUser,
+        deleteUserAccount,
         deleteStore,
 
         isGmailLinked,

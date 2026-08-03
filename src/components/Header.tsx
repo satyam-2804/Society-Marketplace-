@@ -451,7 +451,7 @@ export const Header: React.FC<HeaderProps> = ({
                           </div>
                           
                           <div className="pt-1">
-                            <GmailConnectButton compact />
+                            {currentRole === 'admin' && <GmailConnectButton compact />}
                           </div>
                         </div>
                         <div className="py-1 space-y-0.5">

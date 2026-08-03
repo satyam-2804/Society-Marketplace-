@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { safeLocalStorage } from '../../lib/storage';
-import { GmailConnectButton } from '../GmailConnectButton';
 import {
   User as UserIcon,
   ShoppingBag,
@@ -407,8 +406,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             )}
           </div>
 
-          {/* Gmail API Email Receipts Card */}
-          <GmailConnectButton />
+
 
           {/* Additional Account Information Banner */}
           <div className="bg-gradient-to-br from-slate-900 to-emerald-950 text-white rounded-3xl p-6 shadow-md space-y-3">

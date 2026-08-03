@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
+import { GmailConnectButton } from './GmailConnectButton';
 import { safeToLower } from '../lib/storage';
 import { X, MapPin, Phone, User, QrCode, CreditCard, Banknote, Clock, ArrowRight, ShieldCheck, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
-import { GmailConnectButton } from './GmailConnectButton';
 import { isGmailConnected } from '../lib/gmailService';
 
 export const CheckoutModal: React.FC = () => {
@@ -61,11 +61,12 @@ export const CheckoutModal: React.FC = () => {
   const handlePlaceOrderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-
     if (!isGmailLinked) {
       setErrorMsg('Please connect your Gmail account before placing the order so we can send the order details to the shopkeeper.');
       return;
     }
+
+
 
     if (!fullName.trim()) {
       setErrorMsg('Please enter your full name.');
@@ -221,6 +222,8 @@ export const CheckoutModal: React.FC = () => {
                 <GmailConnectButton compact />
               </div>
             )}
+
+
 
             {/* Total Summary */}
             <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">

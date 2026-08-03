@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { Store, User, Order, Product, Coupon, Banner, AppNotification } from '../../types';
 import { safeToLower } from '../../lib/storage';
@@ -200,6 +201,7 @@ export const AdminDashboard: React.FC = () => {
     addBanner,
     broadcastNotification,
     toggleBanUser,
+    deleteUserAccount,
     deleteStore,
     addProduct,
     editProduct,
@@ -266,6 +268,18 @@ export const AdminDashboard: React.FC = () => {
 
   // Expanded Order for "Who ordered what" details
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  // Analytics timeframe
+  const [analyticsTimeframe, setAnalyticsTimeframe] = useState<'7days' | '30days' | 'lifetime'>('lifetime');
+
+  const filterOrdersByTimeframe = (orderList: Order[]) => {
+    if (analyticsTimeframe === 'lifetime') return orderList;
+    const now = new Date();
+    const cutoffDate = new Date();
+    if (analyticsTimeframe === '7days') cutoffDate.setDate(now.getDate() - 7);
+    if (analyticsTimeframe === '30days') cutoffDate.setDate(now.getDate() - 30);
+    return orderList.filter(o => new Date(o.createdAt) >= cutoffDate);
+  };
 
   // Total Metrics (Calculations)
   const successfulOrders = orders.filter((o) => o.status !== 'rejected' && o.status !== 'cancelled');
@@ -692,9 +706,20 @@ export const AdminDashboard: React.FC = () => {
                 <h3 className="text-lg font-black text-slate-900 tracking-tight">Detailed Store-Wise Analytics</h3>
                 <p className="text-xs text-slate-500 font-semibold mt-0.5">Separate analysis of every shop's activity and inventory levels</p>
               </div>
-              <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
-                <StoreIcon className="w-3.5 h-3.5 text-slate-600" />
-                <span>{stores.length} Shops Total</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={analyticsTimeframe}
+                  onChange={(e) => setAnalyticsTimeframe(e.target.value as any)}
+                  className="bg-slate-100 border-none text-slate-700 text-xs font-bold rounded-xl px-3 py-1.5 outline-none cursor-pointer"
+                >
+                  <option value="7days">Last 7 Days</option>
+                  <option value="30days">Last 30 Days</option>
+                  <option value="lifetime">Lifetime</option>
+                </select>
+                <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                  <StoreIcon className="w-3.5 h-3.5 text-slate-600" />
+                  <span>{stores.length} Shops Total</span>
+                </div>
               </div>
             </div>
 
@@ -706,14 +731,16 @@ export const AdminDashboard: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {stores.map((s) => {
-                  const storeOrdersList = orders.filter((o) => o.storeId === s.id);
+                  const allStoreOrdersList = orders.filter((o) => o.storeId === s.id);
+                  const storeOrdersList = filterOrdersByTimeframe(allStoreOrdersList);
                   const storeSuccessfulOrders = storeOrdersList.filter((o) => o.status !== 'rejected' && o.status !== 'cancelled');
                   const storeTotalSales = storeSuccessfulOrders.reduce((sum, o) => sum + o.totalAmount, 0);
                   const storeProductsList = products.filter((p) => p.storeId === s.id);
                   const storePendingApprovalOrders = storeOrdersList.filter((o) => o.status === 'pending').length;
 
-                  // Percentage of total platform sales
-                  const shareOfSales = totalRevenue > 0 ? Math.round((storeTotalSales / totalRevenue) * 100) : 0;
+                  // Percentage of total platform sales in this timeframe
+                  const timeframeTotalRevenue = filterOrdersByTimeframe(successfulOrders).reduce((sum, o) => sum + o.totalAmount, 0);
+                  const shareOfSales = timeframeTotalRevenue > 0 ? Math.round((storeTotalSales / timeframeTotalRevenue) * 100) : 0;
 
                   return (
                     <div key={s.id} className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-300 transition-all">
@@ -788,7 +815,7 @@ export const AdminDashboard: React.FC = () => {
                           className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all"
                           title="View Orders"
                         >
-                          Orders ({storeOrdersList.length})
+                          Orders ({allStoreOrdersList.length})
                         </button>
                       </div>
                     </div>
@@ -1411,6 +1438,18 @@ export const AdminDashboard: React.FC = () => {
                               >
                                 <Ban className="w-3 h-3" />
                                 <span>{u.isBanned ? 'Lift Ban' : 'Ban ID'}</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to permanently delete user ${u.fullName}? This cannot be undone.`)) {
+                                    deleteUserAccount(u.id);
+                                    toast.success('User deleted successfully');
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
                               </button>
                             </div>
                           ) : (

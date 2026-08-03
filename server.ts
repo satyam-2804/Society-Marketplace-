@@ -407,7 +407,7 @@ app.post("/api/send-email", async (req, res) => {
   }
 
   const transporter = getEmailTransporter();
-  const fromEmail = process.env.FROM_EMAIL || process.env.SMTP_USER || "no-reply@manokamna-marketplace.com";
+  const fromEmail = process.env.FROM_EMAIL || process.env.SMTP_USER || "satyam443355@gmail.com";
 
   if (!transporter) {
     console.log(`[SIMULATED EMAIL ALERT]

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Toaster } from 'sonner';
 import { MarketplaceProvider, useMarketplace } from './context/MarketplaceContext';
 import { safeLocalStorage, safeToLower } from './lib/storage';
 import { User } from './types';
@@ -31,6 +32,7 @@ import {
   Mail,
   Clock,
   UserCheck,
+  AlertCircle,
   Home,
   ArrowLeft,
   Star,
@@ -334,6 +336,19 @@ function MarketplaceApp() {
                   >
                     Register Customer
                   </button>
+                </div>
+              </div>
+            ) : currentUser.isBanned ? (
+              <div className="py-20 px-4 max-w-xl mx-auto text-center space-y-6 bg-white border border-slate-200 rounded-3xl shadow-sm my-8">
+                <div className="w-16 h-16 bg-rose-100 text-rose-700 rounded-2xl mx-auto flex items-center justify-center shadow-xs">
+                  <AlertCircle className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-rose-600">Account Banned</h2>
+                  <p className="text-sm font-bold text-slate-700">You have been banned from our society marketplace.</p>
+                  <p className="text-xs text-slate-500 font-medium">
+                    You are unable to place orders or browse stores. Please contact the society admin for more information.
+                  </p>
                 </div>
               </div>
             ) : !selectedStore ? (
@@ -874,6 +889,7 @@ function MarketplaceApp() {
 export default function App() {
   return (
     <MarketplaceProvider>
+      <Toaster position="top-center" richColors />
       <MarketplaceApp />
     </MarketplaceProvider>
   );
